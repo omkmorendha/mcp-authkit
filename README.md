@@ -1,6 +1,6 @@
 # mcp-authkit
 
-[![CI](https://img.shields.io/badge/CI-placeholder-lightgrey)](#)
+[![CI](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml/badge.svg)](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml)
 
 > **Status: v0.1 in development.** The v0.1 spec is the source of truth:
 > [`docs/spec/v0.1.md`](docs/spec/v0.1.md).
