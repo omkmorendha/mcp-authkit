@@ -67,4 +67,42 @@ describe("validateHost", () => {
     const r = validateHost(reqWithHost("anything.test"), { allowedHosts: [] })
     expect(r.ok).toBe(true)
   })
+
+  it("accepts bracketed IPv6 with matching port", () => {
+    const r = validateHost(reqWithHost("[::1]:3000"), {
+      allowedHosts: ["[::1]:3000"],
+    })
+    expect(r.ok).toBe(true)
+  })
+
+  it("accepts bracketed IPv6 against port-less entry on any port", () => {
+    const r = validateHost(reqWithHost("[::1]:8080"), {
+      allowedHosts: ["[::1]"],
+    })
+    expect(r.ok).toBe(true)
+  })
+
+  it("rejects bracketed IPv6 when port differs from allowlist", () => {
+    const r = validateHost(reqWithHost("[::1]:8080"), {
+      allowedHosts: ["[::1]:3000"],
+    })
+    expect(r.ok).toBe(false)
+  })
+
+  it.each([
+    "api.example.com/path",
+    "api.example.com?x=1",
+    "api.example.com#x",
+    "user@api.example.com",
+  ])("rejects smuggled Host header %s", (header) => {
+    const r = validateHost(reqWithHost(header), { allowedHosts: ["api.example.com"] })
+    expect(r.ok).toBe(false)
+  })
+
+  it("rejects forged IPv6 host", () => {
+    const r = validateHost(reqWithHost("[2001:db8::1]:3000"), {
+      allowedHosts: ["[::1]"],
+    })
+    expect(r.ok).toBe(false)
+  })
 })

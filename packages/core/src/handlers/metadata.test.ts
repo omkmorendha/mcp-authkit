@@ -89,6 +89,26 @@ describe("createMetadataHandler", () => {
     expect(get().status).toBe(405)
   })
 
+  it("serves 200 HEAD without body", async () => {
+    const handler = createMetadataHandler({
+      resourceIndicator: RESOURCE,
+      vocabulary: { "echo:say": { description: "echo" } },
+      host: { allowedHosts: [] },
+    })
+    const { res, get } = mockRes()
+    await handler(
+      {
+        method: "HEAD",
+        headers: { host: "api.example.com" },
+        url: "/.well-known/oauth-protected-resource",
+      } as import("node:http").IncomingMessage,
+      res,
+    )
+    const out = get()
+    expect(out.status).toBe(200)
+    expect(out.body).toBe("")
+  })
+
   it("rejects forged Host with 403", async () => {
     const handler = createMetadataHandler({
       resourceIndicator: RESOURCE,
