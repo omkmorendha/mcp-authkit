@@ -37,12 +37,7 @@ import { createAuthKit, runPipeline } from "../authkit.js"
 import { BypassProductionError, checkBypassConfig } from "../bypass/index.js"
 import { mintPat } from "../pats/format.js"
 import { startTestAS, type TestAS } from "../test/fixtures/as.js"
-import type {
-  AuditEvent,
-  AuthKitConfig,
-  CreatePatInput,
-  CreateRefreshTokenInput,
-} from "../types.js"
+import type { AuthKitConfig, CreatePatInput, CreateRefreshTokenInput } from "../types.js"
 import { createAuditRecorder } from "./audit-recorder.js"
 
 // ---------------------------------------------------------------------------
@@ -51,7 +46,6 @@ import { createAuditRecorder } from "./audit-recorder.js"
 
 interface Rig {
   url: string
-  events: readonly AuditEvent[]
   close: () => Promise<void>
 }
 
@@ -123,7 +117,6 @@ async function startRig(opts: RigOptions): Promise<Rig> {
 
   return {
     url,
-    events: [],
     close: async () =>
       new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),
