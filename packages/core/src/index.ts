@@ -15,6 +15,22 @@ export {
   verifyPat,
 } from "./pats/format.js"
 export {
+  type AuditSink,
+  type CreatePatRequest,
+  type CreatePatResult,
+  createPat,
+  findPatByHash,
+  type LifecycleOptions,
+  listPats,
+  type PatLifecycleConfig,
+  PatLifecycleError,
+  type PatLifecycleErrorCode,
+  type ResolvedPat,
+  revokePat,
+  rotatePat,
+  updatePatLastUsed,
+} from "./pats/lifecycle.js"
+export {
   expand,
   intersect,
   matchesAny,
