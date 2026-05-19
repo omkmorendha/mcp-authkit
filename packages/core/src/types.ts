@@ -216,7 +216,4 @@ export interface AuthKit {
   handlers(mcp: McpServer): Handlers
 }
 
-export function createAuthKit(config: AuthKitConfig): AuthKit {
-  void config
-  throw new Error("not implemented")
-}
+export { createAuthKit } from "./authkit.js"

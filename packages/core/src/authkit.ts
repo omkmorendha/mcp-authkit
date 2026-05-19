@@ -1,0 +1,371 @@
+/**
+ * `createAuthKit` factory — token validation pipeline and scope-gate.
+ *
+ * Spec: docs/spec/v0.1.md#9-token-validation-pipeline
+ *       docs/spec/v0.1.md#12-audit-callbacks
+ *       docs/spec/v0.1.md#14-security-non-negotiables
+ *
+ * @module
+ */
+import { AsyncLocalStorage } from "node:async_hooks"
+import { createHash, timingSafeEqual } from "node:crypto"
+import type { IncomingMessage, ServerResponse } from "node:http"
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
+import pino from "pino"
+import { z } from "zod"
+import { createIntrospectionValidator } from "./auth/introspection.js"
+import { createJwtValidator } from "./auth/jwt.js"
+import {
+  checkBypassConfig,
+  synthesizeBypassContext,
+  synthesizeStaticContext,
+} from "./bypass/index.js"
+import { findPatByHash, updatePatLastUsed } from "./pats/lifecycle.js"
+import { satisfies } from "./scopes/satisfies.js"
+import type {
+  AuditEvent,
+  AuthContext,
+  AuthKit,
+  AuthKitConfig,
+  Handlers,
+  RegisterToolOptions,
+} from "./types.js"
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/** Internal pipeline result — not part of the public API. */
+export type PipelineResult = { ok: true; auth: AuthContext } | { ok: false; reason: string }
+
+/**
+ * Extract the Bearer token from an Authorization header value.
+ * Returns null if the header is absent or not a Bearer token.
+ */
+export function extractBearer(authHeader: string | undefined): string | null {
+  if (!authHeader) return null
+  const match = /^Bearer\s+(\S+)$/i.exec(authHeader)
+  return match?.[1] ?? null
+}
+
+/**
+ * True if the token looks like a compact JWS (three non-empty segments
+ * separated by dots). Structural heuristic only; the JWT validator verifies.
+ */
+export function looksLikeJwt(token: string): boolean {
+  const parts = token.split(".")
+  return parts.length === 3 && parts.every((p) => p.length > 0)
+}
+
+/**
+ * Constant-time comparison for two strings (spec §14).
+ *
+ * Encodes both as UTF-8 and uses `crypto.timingSafeEqual`. When lengths
+ * differ, a dummy comparison still runs so runtime is not a function of
+ * attacker-supplied input length. Always returns false on mismatch.
+ */
+export function timingSafeStringEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, "utf8")
+  const bBuf = Buffer.from(b, "utf8")
+  if (aBuf.length !== bBuf.length) {
+    // Run a dummy comparison to prevent length-based timing leaks.
+    const dummy = Buffer.alloc(aBuf.length, 0)
+    timingSafeEqual(dummy, dummy)
+    return false
+  }
+  return timingSafeEqual(aBuf, bBuf)
+}
+
+async function emitAudit(
+  onEvent: ((e: AuditEvent) => void | Promise<void>) | undefined,
+  event: AuditEvent,
+): Promise<void> {
+  if (onEvent) await onEvent(event)
+}
+
+// ---------------------------------------------------------------------------
+// Six-step validation pipeline (spec §9)
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the six-step token validation pipeline for a single request.
+ *
+ * Returns `{ ok: true, auth }` on the first matching path, or
+ * `{ ok: false, reason }` when no step authorises the request.
+ *
+ * The `onEvent` audit callback receives `oauth.validate`, `oauth.reject`,
+ * and `pat.use` events; `scope.allow` / `scope.deny` are fired by the
+ * `registerTool` scope gate, not here.
+ */
+export async function runPipeline(
+  config: AuthKitConfig,
+  bearerToken: string | null,
+  onEvent?: (e: AuditEvent) => void | Promise<void>,
+): Promise<PipelineResult> {
+  const now = new Date()
+
+  // Step 1: Bypass mode active?
+  const bypass = config.auth.bypass
+  if (bypass?.enabled) {
+    return { ok: true, auth: synthesizeBypassContext(bypass) }
+  }
+
+  // Step 2: Static token configured and matches (constant-time)?
+  const staticToken = config.auth.staticToken
+  if (staticToken !== undefined && bearerToken !== null) {
+    if (timingSafeStringEqual(staticToken.token, bearerToken)) {
+      return { ok: true, auth: synthesizeStaticContext(staticToken) }
+    }
+  }
+
+  // Steps 3–5 require a bearer token.
+  if (bearerToken === null) {
+    return { ok: false, reason: "no bearer token" }
+  }
+
+  // Step 3: Bearer token has PAT prefix?
+  const patConfig = config.auth.pat
+  const patPrefix = patConfig.enabled ? (patConfig.prefix ?? "") : null
+  if (patPrefix && bearerToken.startsWith(patPrefix)) {
+    const hash = createHash("sha256").update(bearerToken).digest()
+    const resolved = await findPatByHash(config.auth.tokenStore, hash, config.resolveUserScopes)
+    if (resolved !== null) {
+      const auth: AuthContext = {
+        subject: resolved.stored.userIdentifier,
+        tokenType: "pat",
+        tokenId: resolved.stored.id,
+        scopes: resolved.effectiveScopes,
+        expiresAt: resolved.stored.expiresAt,
+        raw: {
+          id: resolved.stored.id,
+          name: resolved.stored.name,
+          display: resolved.stored.display,
+          createdAt: resolved.stored.createdAt,
+          lastUsedAt: resolved.stored.lastUsedAt,
+        },
+      }
+      // Best-effort, non-blocking — never await (spec §9 step 3).
+      void updatePatLastUsed(config.auth.tokenStore, resolved.stored.id, now)
+      await emitAudit(onEvent, {
+        type: "pat.use",
+        at: now,
+        subject: auth.subject,
+        tokenId: auth.tokenId,
+        detail: { scopes: auth.scopes },
+      })
+      return { ok: true, auth }
+    }
+    // PAT-shaped token the store doesn't know about — fail fast; don't try
+    // JWT or introspection for PAT-prefixed tokens.
+    await emitAudit(onEvent, {
+      type: "oauth.reject",
+      at: now,
+      subject: null,
+      tokenId: null,
+      detail: { reason: "pat-not-found-or-invalid" },
+    })
+    return { ok: false, reason: "pat-not-found-or-invalid" }
+  }
+
+  const as = config.auth.authorizationServer
+  if (!as) {
+    // No AS configured — cannot validate JWT or introspect.
+    return { ok: false, reason: "no authorization server configured" }
+  }
+
+  // Step 4: Bearer token looks like JWT (3-dot structure)?
+  if (looksLikeJwt(bearerToken)) {
+    const validator = createJwtValidator({
+      issuer: as.issuer,
+      audience: config.resourceIndicator,
+      jwksUri: as.jwksUri,
+      ...(as.jwksCacheTtlMs !== undefined ? { jwksCacheTtlMs: as.jwksCacheTtlMs } : {}),
+    })
+    const result = await validator.validate(bearerToken)
+    if (result.ok) {
+      await emitAudit(onEvent, {
+        type: "oauth.validate",
+        at: now,
+        subject: result.auth.subject,
+        tokenId: result.auth.tokenId,
+        detail: { tokenType: "jwt" },
+      })
+      return { ok: true, auth: result.auth }
+    }
+    await emitAudit(onEvent, {
+      type: "oauth.reject",
+      at: now,
+      subject: null,
+      tokenId: null,
+      detail: { reason: result.reason, message: result.message, tokenType: "jwt" },
+    })
+    // JWT-shaped token that failed validation. Fall through to introspection
+    // if configured — opaque tokens can coincidentally have dots.
+    if (!as.introspectionEndpoint) {
+      return { ok: false, reason: `jwt-${result.reason}` }
+    }
+  }
+
+  // Step 5: introspectionEndpoint configured (opaque token or failed JWT)?
+  if (as.introspectionEndpoint) {
+    const validator = createIntrospectionValidator({
+      introspectionEndpoint: as.introspectionEndpoint,
+      audience: config.resourceIndicator,
+    })
+    const result = await validator.validate(bearerToken)
+    if (result.ok) {
+      await emitAudit(onEvent, {
+        type: "oauth.validate",
+        at: now,
+        subject: result.auth.subject,
+        tokenId: result.auth.tokenId,
+        detail: { tokenType: "introspection" },
+      })
+      return { ok: true, auth: result.auth }
+    }
+    await emitAudit(onEvent, {
+      type: "oauth.reject",
+      at: now,
+      subject: null,
+      tokenId: null,
+      detail: { reason: result.reason, message: result.message, tokenType: "introspection" },
+    })
+    return { ok: false, reason: `introspection-${result.reason}` }
+  }
+
+  // Step 6: No match.
+  return { ok: false, reason: "no matching auth method" }
+}
+
+// ---------------------------------------------------------------------------
+// createAuthKit
+// ---------------------------------------------------------------------------
+
+/**
+ * Create an {@link AuthKit} instance bound to the given configuration.
+ *
+ * Throws {@link BypassProductionError} at startup if bypass mode is active in
+ * a production environment without `bypass.allowInProduction: true` (spec §14).
+ */
+export function createAuthKit(config: AuthKitConfig): AuthKit {
+  const logger = config.logger ?? pino({ level: "info" })
+  const customMatchers = config.scopes.customMatchers ?? []
+  const onEvent = config.audit?.onEvent
+
+  // Validate bypass config at startup — throws BypassProductionError if unsafe.
+  checkBypassConfig({ config, logger })
+
+  // AsyncLocalStorage allows the HTTP mcp handler (issue #36) to inject an
+  // AuthContext into the async context so registerTool handlers can read it
+  // without threading it through the MCP SDK call stack.
+  const authContextStorage = new AsyncLocalStorage<AuthContext>()
+
+  function registerTool<I extends z.ZodRawShape>(
+    mcp: McpServer,
+    options: RegisterToolOptions<I>,
+  ): void {
+    const schema = z.object(options.inputSchema)
+
+    // biome-ignore lint/suspicious/noExplicitAny: ToolCallback generics cannot be bridged without any at this wrapper boundary
+    const mcpCallback = (async (rawInput: any, extra: { authInfo?: { token?: string } }) => {
+      const input = schema.parse(rawInput) as z.infer<typeof schema>
+
+      // Prefer auth context injected by the HTTP handler via ALS (issue #36).
+      // Fall back to the bearer token from the SDK's authInfo (set when the
+      // MCP transport does its own auth), then no token (covers bypass/static
+      // and unit tests that don't run over HTTP).
+      let auth = authContextStorage.getStore()
+      if (auth === undefined) {
+        const bearer = extra.authInfo?.token ?? null
+        const result = await runPipeline(config, bearer, onEvent)
+        if (!result.ok) {
+          logger.debug({ reason: result.reason }, "pipeline rejected")
+          return {
+            content: [{ type: "text" as const, text: "Unauthorized" }],
+            isError: true,
+          }
+        }
+        auth = result.auth
+      }
+
+      const now = new Date()
+
+      // Resolve required scopes (static list or dynamic function).
+      const required =
+        typeof options.requireScopes === "function"
+          ? await options.requireScopes({ input, auth })
+          : options.requireScopes
+
+      // Gate: every required scope must be satisfied (spec §7, §12).
+      for (const req of required) {
+        const allowed = await satisfies(req, [...auth.scopes], { auth, input }, customMatchers)
+        if (!allowed) {
+          await emitAudit(onEvent, {
+            type: "scope.deny",
+            at: now,
+            subject: auth.subject,
+            tokenId: auth.tokenId,
+            detail: { tool: options.name, required: req, held: auth.scopes },
+          })
+          logger.debug({ tool: options.name, required: req }, "scope.deny")
+          return {
+            content: [{ type: "text" as const, text: `Forbidden: missing scope ${req}` }],
+            isError: true,
+          }
+        }
+      }
+
+      // All scopes satisfied — emit allow event(s) and invoke handler (spec §12).
+      for (const req of required) {
+        await emitAudit(onEvent, {
+          type: "scope.allow",
+          at: now,
+          subject: auth.subject,
+          tokenId: auth.tokenId,
+          detail: { tool: options.name, scope: req },
+        })
+      }
+      logger.debug({ tool: options.name, scopes: required }, "scope.allow")
+
+      return (await options.handler({ input, auth })) as unknown as CallToolResult
+      // biome-ignore lint/suspicious/noExplicitAny: bridge our wrapper return type to SDK's CallToolResult
+    }) as any
+    mcp.tool(options.name, options.description, options.inputSchema, mcpCallback)
+  }
+
+  function handlers(_mcp: McpServer): Handlers {
+    // Full HTTP handler wiring is issue #36. These stubs satisfy the AuthKit
+    // interface shape; they will be replaced when #36 lands.
+    const notImplemented = async (_req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      res.writeHead(501, { "Content-Type": "application/json" })
+      res.end(JSON.stringify({ error: "not_implemented" }))
+    }
+
+    return {
+      mcp: notImplemented,
+      metadata: notImplemented,
+      pats: notImplemented,
+      challenge: (res: ServerResponse, reason?: string) => {
+        const params = [`resource="${config.resourceIndicator}"`]
+        if (reason) params.push(`error="${reason}"`)
+        res.setHeader("WWW-Authenticate", `Bearer ${params.join(", ")}`)
+        res.writeHead(401)
+        res.end()
+      },
+    }
+  }
+
+  // The _authContextStorage and _runPipeline fields are used by the HTTP
+  // handler (issue #36) to inject auth context and reuse the bound pipeline.
+  // Not part of the public AuthKit interface; _ prefix signals internal use.
+  return {
+    registerTool,
+    handlers,
+    _authContextStorage: authContextStorage,
+    _runPipeline: (bearer: string | null) => runPipeline(config, bearer, onEvent),
+  } as AuthKit & {
+    _authContextStorage: AsyncLocalStorage<AuthContext>
+    _runPipeline: (bearer: string | null) => Promise<PipelineResult>
+  }
+}
