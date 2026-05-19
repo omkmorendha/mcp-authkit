@@ -170,7 +170,7 @@ pnpm exec tsx src/index.ts
 
 You should see:
 
-```
+```json
 {"level":30,"time":...,"name":"hello","port":3000,"msg":"listening"}
 ```
 
@@ -254,7 +254,7 @@ curl -sX POST http://localhost:3000/mcp \
 
 Expected (Streamable HTTP wraps the JSON-RPC response in an SSE event):
 
-```
+```text
 event: message
 data: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"hello"}]}}
 ```
