@@ -64,6 +64,19 @@ export function validateHost(
   let presentedHostOnly: string | null = null
   try {
     const u = new URL(`http://${presented}`)
+    // Reject Host header values that smuggle anything other than a bare
+    // authority. A header like `api.example.com/path` would otherwise parse
+    // with `hostname === "api.example.com"` and slip past a host-only
+    // allowlist entry, defeating §14.
+    if (
+      u.username !== "" ||
+      u.password !== "" ||
+      u.pathname !== "/" ||
+      u.search !== "" ||
+      u.hash !== ""
+    ) {
+      return { ok: false, reason: "disallowed" }
+    }
     // `u.hostname` keeps the brackets for IPv6 (e.g. `[::1]`) and is the host
     // portion without the port.
     presentedHostOnly = u.hostname

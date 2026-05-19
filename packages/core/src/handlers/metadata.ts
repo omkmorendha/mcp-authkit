@@ -63,6 +63,17 @@ export function createMetadataHandler(
       methodNotAllowed(res, ["GET", "HEAD"])
       return
     }
+    if (req.method === "HEAD") {
+      if (res.headersSent) return
+      const payload = JSON.stringify(document)
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Length": Buffer.byteLength(payload),
+        "Cache-Control": "no-store",
+      })
+      res.end()
+      return
+    }
     sendJson(res, 200, document)
   }
 }

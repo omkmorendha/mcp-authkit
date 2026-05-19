@@ -106,6 +106,7 @@ describe("createMetadataHandler", () => {
     )
     const out = get()
     expect(out.status).toBe(200)
+    expect(out.body).toBe("")
   })
 
   it("rejects forged Host with 403", async () => {

@@ -89,6 +89,16 @@ describe("validateHost", () => {
     expect(r.ok).toBe(false)
   })
 
+  it.each([
+    "api.example.com/path",
+    "api.example.com?x=1",
+    "api.example.com#x",
+    "user@api.example.com",
+  ])("rejects smuggled Host header %s", (header) => {
+    const r = validateHost(reqWithHost(header), { allowedHosts: ["api.example.com"] })
+    expect(r.ok).toBe(false)
+  })
+
   it("rejects forged IPv6 host", () => {
     const r = validateHost(reqWithHost("[2001:db8::1]:3000"), {
       allowedHosts: ["[::1]"],
