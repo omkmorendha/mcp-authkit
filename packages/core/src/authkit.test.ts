@@ -618,3 +618,160 @@ describe("registerTool: scope gate", () => {
     expect(events.some((e) => e.type === "scope.deny")).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Audit hook rejection (spec §12: "an exception aborts the triggering op")
+// ---------------------------------------------------------------------------
+
+describe("audit hook rejection propagates from runPipeline", () => {
+  it("propagates from oauth.validate (JWT happy path)", async () => {
+    const as2 = await startTestAS()
+    try {
+      const boom = new Error("audit refused validate")
+      const config: AuthKitConfig = {
+        resourceIndicator: AUDIENCE,
+        auth: {
+          authorizationServer: { issuer: as2.issuer, jwksUri: as2.jwksUri },
+          tokenStore: memoryTokenStore(),
+          pat: { enabled: false },
+        },
+        scopes: { vocabulary: {} },
+        resolveUserScopes: async () => [],
+        audit: {
+          onEvent: () => {
+            throw boom
+          },
+        },
+      }
+      const token = await as2.signToken({ sub: "u1", aud: AUDIENCE })
+      await expect(runPipeline(config, token, config.audit?.onEvent)).rejects.toBe(boom)
+    } finally {
+      await as2.close()
+    }
+  })
+
+  it("propagates from oauth.reject (JWT failure path)", async () => {
+    const as2 = await startTestAS()
+    try {
+      const boom = new Error("audit refused reject")
+      const config: AuthKitConfig = {
+        resourceIndicator: AUDIENCE,
+        auth: {
+          authorizationServer: { issuer: as2.issuer, jwksUri: as2.jwksUri },
+          tokenStore: memoryTokenStore(),
+          pat: { enabled: false },
+        },
+        scopes: { vocabulary: {} },
+        resolveUserScopes: async () => [],
+        audit: {
+          onEvent: () => {
+            throw boom
+          },
+        },
+      }
+      const token = await as2.signToken({ sub: "u1", aud: "wrong-aud" })
+      await expect(runPipeline(config, token, config.audit?.onEvent)).rejects.toBe(boom)
+    } finally {
+      await as2.close()
+    }
+  })
+
+  it("propagates from pat.use (valid PAT)", async () => {
+    const store = memoryTokenStore()
+    const boom = new Error("audit refused pat.use")
+    const config = makeConfig({
+      auth: { ...makeConfig().auth, tokenStore: store, pat: { enabled: true, prefix: "mcp_pat_" } },
+      audit: {
+        onEvent: (e) => {
+          if (e.type === "pat.use") throw boom
+        },
+      },
+    })
+    const patConfig = {
+      prefix: "mcp_pat_",
+      defaultExpiryDays: 90,
+      maxExpiryDays: 365,
+      rotationGraceSeconds: 0,
+    }
+    const result = await createPat(store, patConfig, {
+      userIdentifier: "u1",
+      name: "t",
+      scopes: ["read:data"],
+      expiresInDays: 1,
+    })
+    await expect(runPipeline(config, result.token, config.audit?.onEvent)).rejects.toBe(boom)
+  })
+
+  it("propagates from oauth.reject (PAT-not-found)", async () => {
+    const boom = new Error("audit refused pat-reject")
+    const config = makeConfig({
+      auth: {
+        ...makeConfig().auth,
+        tokenStore: memoryTokenStore(),
+        pat: { enabled: true, prefix: "mcp_pat_" },
+      },
+      audit: {
+        onEvent: () => {
+          throw boom
+        },
+      },
+    })
+    await expect(runPipeline(config, "mcp_pat_unknown_token", config.audit?.onEvent)).rejects.toBe(
+      boom,
+    )
+  })
+})
+
+describe("audit hook rejection propagates from registerTool scope gate", () => {
+  it("propagates from scope.allow", async () => {
+    const boom = new Error("audit refused allow")
+    const config: AuthKitConfig = {
+      ...makeConfig(),
+      auth: {
+        ...makeConfig().auth,
+        bypass: { enabled: true, user: "dev", scopes: ["read:data"] },
+      },
+      audit: {
+        onEvent: (e) => {
+          if (e.type === "scope.allow") throw boom
+        },
+      },
+    }
+    const kit = createAuthKit(config)
+    const mcp = new McpServer({ name: "test", version: "0.0.1" })
+    kit.registerTool(mcp, {
+      name: "ok-tool",
+      description: "ok",
+      inputSchema: {},
+      requireScopes: ["read:data"],
+      handler: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
+    })
+    await expect(getToolHandler(mcp, "ok-tool")?.({}, {})).rejects.toBe(boom)
+  })
+
+  it("propagates from scope.deny", async () => {
+    const boom = new Error("audit refused deny")
+    const config: AuthKitConfig = {
+      ...makeConfig(),
+      auth: {
+        ...makeConfig().auth,
+        bypass: { enabled: true, user: "dev", scopes: ["read:data"] },
+      },
+      audit: {
+        onEvent: (e) => {
+          if (e.type === "scope.deny") throw boom
+        },
+      },
+    }
+    const kit = createAuthKit(config)
+    const mcp = new McpServer({ name: "test", version: "0.0.1" })
+    kit.registerTool(mcp, {
+      name: "denied",
+      description: "denied",
+      inputSchema: {},
+      requireScopes: ["admin:all"],
+      handler: async () => ({ content: [{ type: "text" as const, text: "nope" }] }),
+    })
+    await expect(getToolHandler(mcp, "denied")?.({}, {})).rejects.toBe(boom)
+  })
+})

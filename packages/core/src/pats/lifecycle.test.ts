@@ -220,6 +220,31 @@ describe("createPat", () => {
     expect(events[0]?.type).toBe("pat.mint")
     expect(events[0]?.subject).toBe("u1")
   })
+
+  it("rolls back the store row and propagates when the pat.mint hook throws (spec §12)", async () => {
+    const store = makeFakeStore()
+    const boom = new Error("audit refused mint")
+    const audit = () => {
+      throw boom
+    }
+    await expect(
+      createPat(
+        store,
+        CONFIG,
+        { userIdentifier: "u1", name: "ci", scopes: ["read:profile"] },
+        { audit },
+      ),
+    ).rejects.toBe(boom)
+    // Exactly one row was created, and it must now be revoked.
+    expect(store.rows.size).toBe(1)
+    const [row] = [...store.rows.values()]
+    expect(row?.revokedAt).not.toBeNull()
+    // And it is no longer resolvable through the lookup helper.
+    if (row) {
+      const result = await findPatByHash(store, row.tokenHash, resolveAll)
+      expect(result).toBeNull()
+    }
+  })
 })
 
 describe("findPatByHash", () => {
@@ -419,6 +444,23 @@ describe("revokePat", () => {
     await revokePat(store, stored.id, "u1", { audit: (e) => void events.push(e) })
     expect(events.map((e) => e.type)).toEqual(["pat.revoke"])
   })
+
+  it("propagates when the pat.revoke hook throws (spec §12)", async () => {
+    const store = makeFakeStore()
+    const { stored } = await createPat(store, CONFIG, {
+      userIdentifier: "u1",
+      name: "n",
+      scopes: [],
+    })
+    const boom = new Error("audit refused revoke")
+    await expect(
+      revokePat(store, stored.id, "u1", {
+        audit: () => {
+          throw boom
+        },
+      }),
+    ).rejects.toBe(boom)
+  })
 })
 
 describe("rotatePat", () => {
@@ -489,6 +531,23 @@ describe("rotatePat", () => {
   it("throws when the PAT does not exist", async () => {
     const store = makeFakeStore()
     await expect(rotatePat(store, CONFIG, "nonexistent", "u1")).rejects.toThrow()
+  })
+
+  it("propagates when the pat.rotate hook throws (spec §12)", async () => {
+    const store = makeFakeStore()
+    const { stored: old } = await createPat(store, CONFIG, {
+      userIdentifier: "u1",
+      name: "ci",
+      scopes: ["read:profile"],
+    })
+    const boom = new Error("audit refused rotate")
+    await expect(
+      rotatePat(store, CONFIG, old.id, "u1", {
+        audit: () => {
+          throw boom
+        },
+      }),
+    ).rejects.toBe(boom)
   })
 })
 
