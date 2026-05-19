@@ -188,6 +188,55 @@ async function httpReq(
   return { status: res.status, headers: res.headers, body: await res.text() }
 }
 
+/**
+ * Drive a full MCP roundtrip against the rig: initialize → notifications/
+ * initialized → tools/call. Returns the tools/call response body so the
+ * caller can assert on the tool's reply (or the framework's scope-gate
+ * "Forbidden" reply).
+ */
+async function mcpCallTool(
+  rigUrl: string,
+  bearer: string,
+  toolName: string,
+): Promise<{ status: number; body: string }> {
+  const init = await httpReq("POST", `${rigUrl}/mcp`, {
+    headers: {
+      authorization: `Bearer ${bearer}`,
+      accept: "application/json, text/event-stream",
+    },
+    body: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "sec-test", version: "0" },
+      },
+    },
+  })
+  const sessionId = init.headers.get("mcp-session-id") ?? ""
+  const sessionHeaders = {
+    authorization: `Bearer ${bearer}`,
+    accept: "application/json, text/event-stream",
+    "mcp-session-id": sessionId,
+  }
+  await httpReq("POST", `${rigUrl}/mcp`, {
+    headers: sessionHeaders,
+    body: { jsonrpc: "2.0", method: "notifications/initialized" },
+  })
+  const call = await httpReq("POST", `${rigUrl}/mcp`, {
+    headers: sessionHeaders,
+    body: {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: toolName, arguments: {} },
+    },
+  })
+  return { status: call.status, body: call.body }
+}
+
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
@@ -746,7 +795,7 @@ describe("§14 bypass refuses production", () => {
 // =========================================================================
 
 describe("§11.3 static token + insufficient scopes", () => {
-  it("scope.deny audit fires when static token lacks required scope", async () => {
+  it("static token without admin:write → tool call returns Forbidden + scope.deny audit", async () => {
     const rec = createAuditRecorder()
     const config = baseConfig({
       auth: {
@@ -758,20 +807,21 @@ describe("§11.3 static token + insufficient scopes", () => {
       },
       audit: { onEvent: rec.sink },
     })
-    // Direct pipeline + scope check via runPipeline + admin tool registration.
     const rig = await startRig({ config, registerAdminTool: true })
     try {
-      const pipeline = await runPipeline(config, "ci-only-read", rec.sink)
-      expect(pipeline.ok).toBe(true)
-      if (pipeline.ok) {
-        expect([...pipeline.auth.scopes]).toEqual(["read:data"])
-      }
-      // The framework gates at registerTool; we assert that the static token's
-      // scope set does not include admin:write and that the satisfies() check
-      // would reject (covered by scopes/satisfies.test.ts). The audit assertion
-      // here is that successful pipeline runs do not synthesize a scope.allow
-      // for an unrequested tool.
-      expect(rec.events.some((e) => e.type === "scope.allow")).toBe(false)
+      // Drive a full MCP roundtrip and call the admin tool. The scope gate
+      // returns isError=true with a "Forbidden" message inside the JSON-RPC
+      // result rather than a non-200 HTTP status (the SDK transport always
+      // 200s once it has handled the JSON-RPC request).
+      const call = await mcpCallTool(rig.url, "ci-only-read", "admin")
+      expect(call.status).toBe(200)
+      expect(call.body).toContain("Forbidden")
+      expect(rec.events.some((e) => e.type === "scope.deny")).toBe(true)
+
+      // Sanity: the deny event has the right shape (§12).
+      const deny = rec.events.find((e) => e.type === "scope.deny")
+      expect(deny?.subject).toBe("ci")
+      expect(JSON.stringify(deny?.detail)).toMatch(/admin:write/)
     } finally {
       await rig.close()
     }
@@ -783,7 +833,7 @@ describe("§11.3 static token + insufficient scopes", () => {
 // =========================================================================
 
 describe("§12 audit events fire end-to-end", () => {
-  it("pat.mint, pat.use, pat.revoke, oauth.validate, scope.allow all fire", async () => {
+  it("pat.mint, pat.use, pat.revoke, pat.rotate, oauth.validate, scope.allow all fire", async () => {
     const rec = createAuditRecorder()
     const store = memoryTokenStore()
     const config = baseConfig({
@@ -829,12 +879,20 @@ describe("§12 audit events fire end-to-end", () => {
       })
       expect(rot.status).toBe(200)
 
+      // 6. Drive a full MCP roundtrip with the JWT to fire scope.allow on the
+      // whoami tool (registered with requireScopes: ["read:data"], which the
+      // JWT carries).
+      const call = await mcpCallTool(rig.url, jwt, "whoami")
+      expect(call.status).toBe(200)
+      expect(call.body).toContain("alice")
+
       const types = new Set(rec.events.map((e) => e.type))
       expect(types.has("oauth.validate")).toBe(true)
       expect(types.has("pat.mint")).toBe(true)
       expect(types.has("pat.use")).toBe(true)
       expect(types.has("pat.revoke")).toBe(true)
       expect(types.has("pat.rotate")).toBe(true)
+      expect(types.has("scope.allow")).toBe(true)
 
       // §12: subject + tokenId must be present where the spec implies them.
       const mintEvent = rec.events.find((e) => e.type === "pat.mint")

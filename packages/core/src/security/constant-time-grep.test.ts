@@ -31,23 +31,34 @@ const SECRET_IDENTIFIERS = [
   "bearerToken",
 ]
 
-// Lines that legitimately compare these names against `null`, `undefined`, or
-// `length` are not secret-equality. We strip those before searching.
-const SAFE_OPERATORS = [/===\s*null/, /!==\s*null/, /===\s*undefined/, /!==\s*undefined/]
+// Patterns that are *safe* equality (null / undefined / length checks).
+// We strip every occurrence of these from the line before scanning for an
+// unsafe `===` / `!==`, so that a mixed line ("safe AND unsafe on the same
+// line") cannot slip past the check.
+const SAFE_EQUALITY_PATTERNS: readonly RegExp[] = [
+  /[!=]==\s*null/g,
+  /[!=]==\s*undefined/g,
+  /\.length\s*[!=]==\s*\d+/g,
+  /\.length\s*[!=]==\s*[A-Za-z_$][\w$.]*\.length/g,
+]
 
-function shouldSkipLine(line: string): boolean {
-  // Comments and JSDoc are fine.
+function isCommentLine(line: string): boolean {
   const trimmed = line.trim()
-  if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) {
-    return true
+  return trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")
+}
+
+/**
+ * Remove every safe equality sub-expression from a line so the unsafe-check
+ * sees only the remainder. This ensures a line that contains both a safe
+ * (`x === null`) and an unsafe (`tokenHash === other`) comparison still
+ * fails the test.
+ */
+function stripSafeEquality(line: string): string {
+  let out = line
+  for (const pattern of SAFE_EQUALITY_PATTERNS) {
+    out = out.replace(pattern, "")
   }
-  // Whitelist null/undefined/length comparisons — those aren't secret equality.
-  for (const safe of SAFE_OPERATORS) {
-    if (safe.test(line)) return true
-  }
-  // `.length ===` or `.length !==` is a length check, not a value compare.
-  if (/\.length\s*[!=]==/.test(line)) return true
-  return false
+  return out
 }
 
 function walk(dir: string, out: string[]): void {
@@ -70,20 +81,35 @@ interface Offence {
   readonly identifier: string
 }
 
-function findOffences(repoRoot: string): Offence[] {
-  const packages = [
-    "packages/core/src",
-    "packages/store-memory/src",
-    "packages/adapter-express/src",
-  ]
-  const files: string[] = []
-  for (const pkg of packages) {
-    const abs = join(repoRoot, pkg)
+/**
+ * Discover every `packages/*\/src` directory at the repo root. Dynamic
+ * discovery means the grep automatically picks up new workspace packages
+ * (e.g. future stores/adapters) without a code change here.
+ */
+function discoverPackageSrcDirs(repoRoot: string): string[] {
+  const root = join(repoRoot, "packages")
+  const out: string[] = []
+  let entries: string[]
+  try {
+    entries = readdirSync(root)
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    const src = join(root, entry, "src")
     try {
-      walk(abs, files)
+      if (statSync(src).isDirectory()) out.push(src)
     } catch {
-      // Package may not exist in this branch — skip.
+      // No src/ in this package — skip.
     }
+  }
+  return out
+}
+
+function findOffences(repoRoot: string): Offence[] {
+  const files: string[] = []
+  for (const dir of discoverPackageSrcDirs(repoRoot)) {
+    walk(dir, files)
   }
 
   const offences: Offence[] = []
@@ -91,16 +117,18 @@ function findOffences(repoRoot: string): Offence[] {
     const content = readFileSync(file, "utf8")
     const lines = content.split(/\r?\n/)
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? ""
-      if (shouldSkipLine(line)) continue
+      const raw = lines[i] ?? ""
+      if (isCommentLine(raw)) continue
+      // Strip safe sub-expressions so a mixed line is still flagged on its
+      // unsafe portion.
+      const stripped = stripSafeEquality(raw)
+      if (!/===|!==/.test(stripped)) continue
       for (const id of SECRET_IDENTIFIERS) {
-        if (!line.includes(id)) continue
-        // Look for `===` or `!==` on the same line.
-        if (!/===|!==/.test(line)) continue
+        if (!stripped.includes(id)) continue
         offences.push({
           file: relative(repoRoot, file),
           line: i + 1,
-          text: line.trim(),
+          text: raw.trim(),
           identifier: id,
         })
       }
