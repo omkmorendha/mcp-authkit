@@ -165,4 +165,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        fail("interrupted")
+    except requests.RequestException as exc:
+        fail(f"HTTP error: {exc}")
+    except Exception as exc:  # noqa: BLE001 — last-resort funnel into fail()
+        fail(f"unexpected error: {exc}")

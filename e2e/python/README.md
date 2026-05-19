@@ -44,7 +44,7 @@ tool, and tear down.
 
 On success:
 
-```
+```text
 E2E OK: echoed 'hello, mcp-authkit'
 ```
 

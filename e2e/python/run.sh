@@ -61,16 +61,33 @@ for _ in $(seq 1 600); do
     exit 1
   fi
   if [ -s "$HARNESS_STDOUT" ]; then
-    HANDSHAKE="$(head -n 1 "$HARNESS_STDOUT")"
-    if [ -n "$HANDSHAKE" ]; then break; fi
+    CANDIDATE="$(head -n 1 "$HARNESS_STDOUT")"
+    if [ -n "$CANDIDATE" ]; then
+      # Only break once the handshake is parseable JSON with both keys —
+      # guards against partial-write reads of the first stdout line.
+      if "$PYTHON" -c "
+import json, sys
+try:
+    obj = json.loads(sys.argv[1])
+except Exception:
+    sys.exit(2)
+if not (isinstance(obj, dict) and isinstance(obj.get('url'), str) and isinstance(obj.get('jwt'), str)):
+    sys.exit(2)
+" "$CANDIDATE" 2>/dev/null; then
+        HANDSHAKE="$CANDIDATE"
+        break
+      fi
+    fi
   fi
   sleep 0.1
 done
 
 if [ -z "$HANDSHAKE" ]; then
-  echo "E2E FAIL: harness did not emit a handshake within 60s" >&2
+  echo "E2E FAIL: harness did not emit a valid handshake within 60s" >&2
   echo "--- harness stderr ---" >&2
   cat "$HARNESS_LOG" >&2 || true
+  echo "--- harness stdout ---" >&2
+  cat "$HARNESS_STDOUT" >&2 || true
   exit 1
 fi
 

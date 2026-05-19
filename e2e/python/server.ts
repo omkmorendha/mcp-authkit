@@ -1,13 +1,8 @@
-// E2E harness for the Python script (spec §18).
-//
-// Boots an in-process test Authorization Server (RFC 7517 JWKS) and a
-// hello-world-shaped protected MCP server wired against it. Mints a
-// short-lived test JWT scoped for `echo:say`. Prints a single JSON line
-// `{"url":"http://127.0.0.1:<port>","jwt":"<token>"}` on stdout once
-// ready, then keeps running until killed (SIGINT/SIGTERM).
-//
 // Bypass mode is deliberately OFF so the PAT-mint REST endpoint
-// validates against a real JWT (spec §9, §11.1).
+// genuinely exercises the JWT pipeline (spec §9, §11.1) — the harness
+// signs its own short-lived JWT against an in-process JWKS instead of
+// pointing at the example's fake AS. The single JSON line on stdout
+// is the handshake contract with `run.sh`.
 
 import { createServer as createHttpServer } from "node:http"
 import type { AddressInfo } from "node:net"
