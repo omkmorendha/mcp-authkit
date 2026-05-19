@@ -59,13 +59,36 @@ export function validateHost(
     return { ok: false, reason: "missing" }
   }
   const presented = header.toLowerCase()
-  const presentedHost = presented.split(":")[0] ?? presented
+  // Use URL parsing so that bracketed IPv6 authorities (`[::1]:3000`) split
+  // host vs port correctly; a naive `split(":")` would mangle them.
+  let presentedHostOnly: string | null = null
+  try {
+    const u = new URL(`http://${presented}`)
+    // `u.hostname` keeps the brackets for IPv6 (e.g. `[::1]`) and is the host
+    // portion without the port.
+    presentedHostOnly = u.hostname
+  } catch {
+    presentedHostOnly = null
+  }
 
   for (const entry of options.allowedHosts) {
     const e = entry.toLowerCase()
     if (e === presented) return { ok: true }
-    // Entry without a port matches any port on that host.
-    if (!e.includes(":") && e === presentedHost) return { ok: true }
+    // Entry without a port matches any port on that host. For IPv6 the entry
+    // is bracketed without a port (e.g. `[::1]`); we compare against the
+    // host-only portion of the presented header.
+    if (presentedHostOnly !== null && isHostOnly(e) && e === presentedHostOnly) {
+      return { ok: true }
+    }
   }
   return { ok: false, reason: "disallowed" }
+}
+
+/**
+ * True when an allowlist entry is a host without a port. An IPv6 literal in
+ * brackets (`[::1]`) is host-only; `[::1]:3000` includes a port.
+ */
+function isHostOnly(entry: string): boolean {
+  if (entry.startsWith("[")) return entry.endsWith("]")
+  return !entry.includes(":")
 }
