@@ -4,36 +4,45 @@ This roadmap tracks the path to v0.1. The source of truth for scope is
 [`docs/spec/v0.1.md`](docs/spec/v0.1.md); anything not in that document is
 out of scope for v0.1.
 
-Stages map to the build order in spec §19. Only **Stage 0** issues are
-created up front. Stages 1–4 are listed here as prose; concrete issues for
-each are created when the prior stage is roughly 80% complete, so plans
-stay grounded in what we've actually learned.
+Stages map to the build order in spec §19. Concrete issues for each
+stage are created when the prior stage is roughly 80% complete, so plans
+stay grounded in what we've actually learned. Stage 0 and Stage 1 issues
+exist now; Stages 2–4 are still prose.
 
-## Stage 0 — Foundation (issues live now)
+## Stage 0 — Foundation (complete)
 
 Scaffolding the workspace, tooling, package skeletons, public type
-definitions, the AS test fixture, CI, and a README. See the GitHub
+definitions, the AS test fixture, CI, and a README. All 11 Stage 0
+issues (#1–#11) are closed. See the
 [`stage-0`](https://github.com/omkmorendha/mcp-authkit/labels/stage-0)
-label for the live list. Dependency graph: [`docs/dependency-graph.md`](docs/dependency-graph.md).
+label and [`docs/dependency-graph.md`](docs/dependency-graph.md) for the
+historical record.
 
-## Stage 1 — Auth primitives
+## Stage 1 — Auth primitives (issues live now)
 
 The primitives every later stage composes from. Implementation order
-follows spec §19 steps 3–6.
+follows spec §19 steps 3–6. See the
+[`stage-1`](https://github.com/omkmorendha/mcp-authkit/labels/stage-1)
+label for the live list; dependencies are in
+[`docs/dependency-graph.md`](docs/dependency-graph.md).
 
-- Scope matcher: exact match → wildcards (`*`, `**`) → implications →
-  set utilities (`scope.intersect`, `scope.subtract`, `scope.normalize`,
-  `scope.expand`). Spec §7.
-- PAT format: `<prefix><random>_<checksum>`, mint + parse + verify.
-  Spec §8.1.
-- PAT lifecycle: create, find-by-hash, list, revoke, rotate,
+- **#23** — Scope matcher: exact match → wildcards (`*`, `**`) →
+  implications → set utilities (`scope.intersect`, `scope.subtract`,
+  `scope.normalize`, `scope.expand`). Spec §7.
+- **#24** — PAT format: `<prefix><random>_<checksum>`, mint + parse +
+  verify. Spec §8.1.
+- **#25** — PAT lifecycle: create, find-by-hash, list, revoke, rotate,
   `lastUsedAt`. Spec §8.2–§8.5.
-- JWT validation: signature against cached JWKS, `iss`, `aud ==
-  resourceIndicator`, `exp`, `nbf`. Spec §9 step 4.
-- Introspection (RFC 7662) for opaque AS tokens when
+- **#26** — JWT validation: signature against cached JWKS, `iss`,
+  `aud == resourceIndicator`, `exp`, `nbf`. Spec §9 step 4.
+- **#27** — Introspection (RFC 7662) for opaque AS tokens when
   `introspectionEndpoint` is configured. Spec §9 step 5.
-- Memory token store: full `TokenStore` implementation including
-  refresh-token rotation and family revocation. Spec §6.1 + §14.
+- **#28** — Memory token store: full `TokenStore` implementation
+  including refresh-token rotation and family revocation. Spec §6.1
+  + §14.
+
+Recommended start: **#23 (scope matcher)** and **#24 (PAT format)** —
+both have no Stage 1 blockers and can run in parallel.
 
 ## Stage 2 — Pipeline and handlers
 
