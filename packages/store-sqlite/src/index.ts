@@ -454,9 +454,12 @@ export function sqliteTokenStore(options: SqliteTokenStoreOptions): TokenStore {
       if (!existing) {
         throw new Error(`PAT not found: ${id}`)
       }
+      if (next.userIdentifier !== userIdentifier) {
+        throw new Error("rotatePat user mismatch")
+      }
       insertNext.run(
         newId,
-        next.userIdentifier,
+        userIdentifier,
         next.name,
         JSON.stringify(next.scopes),
         next.expiresAt.getTime(),
@@ -530,6 +533,7 @@ export function sqliteTokenStore(options: SqliteTokenStoreOptions): TokenStore {
     const markRotated = database.prepare(
       `UPDATE ${tables.refreshTokens} SET rotated_at = ? WHERE id = ?`,
     )
+    const revokeFamily = database.prepare(`DELETE FROM ${tables.refreshTokens} WHERE family_id = ?`)
     const insertNext = database.prepare(
       `INSERT INTO ${tables.refreshTokens}
          (id, family_id, token_hash, subject, scopes, expires_at, created_at, rotated_at)
@@ -540,10 +544,14 @@ export function sqliteTokenStore(options: SqliteTokenStoreOptions): TokenStore {
       if (!row) return
       // Constant-time recheck inside the transaction.
       if (!constantTimeEqual(toBuffer(row.token_hash), oldHash)) return
+      if (row.rotated_at !== null) {
+        revokeFamily.run(row.family_id)
+        return
+      }
       markRotated.run(now, row.id)
       insertNext.run(
         newId,
-        next.familyId,
+        row.family_id,
         next.tokenHash,
         next.subject,
         JSON.stringify(next.scopes),

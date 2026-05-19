@@ -249,6 +249,14 @@ describe("sqliteTokenStore — PAT", () => {
     await expect(store.rotatePat(a.id, "user-b", patInput())).rejects.toThrow(/not found/)
   })
 
+  it("rotatePat rejects a next.userIdentifier that does not match the caller", async () => {
+    const store = await freshStore()
+    const a = await store.createPat(patInput({ userIdentifier: "user-a" }))
+    await expect(
+      store.rotatePat(a.id, "user-a", patInput({ userIdentifier: "user-attacker" })),
+    ).rejects.toThrow(/user mismatch/)
+  })
+
   it("updatePatLastUsed sets the timestamp", async () => {
     const store = await freshStore()
     const a = await store.createPat(patInput())
@@ -343,6 +351,33 @@ describe("sqliteTokenStore — refresh tokens", () => {
     expect(await store.findRefreshToken(next.tokenHash)).toBeNull()
   })
 
+  it("reusing an already-rotated refresh token revokes the entire family", async () => {
+    const store = await freshStore()
+    const t1 = refreshInput({ familyId: "fam-replay" })
+    const t2 = refreshInput({ familyId: "fam-replay" })
+    const t3 = refreshInput({ familyId: "fam-replay" })
+    await store.createRefreshToken(t1)
+    await store.rotateRefreshToken(t1.tokenHash, t2)
+    // Replay: t1 was already rotated. Family is revoked, no successor minted.
+    await store.rotateRefreshToken(t1.tokenHash, t3)
+
+    expect(await store.findRefreshToken(t1.tokenHash)).toBeNull()
+    expect(await store.findRefreshToken(t2.tokenHash)).toBeNull()
+    expect(await store.findRefreshToken(t3.tokenHash)).toBeNull()
+  })
+
+  it("rotateRefreshToken ignores a caller-supplied family override", async () => {
+    const store = await freshStore()
+    const original = refreshInput({ familyId: "famX" })
+    await store.createRefreshToken(original)
+    const next = refreshInput({ familyId: "famY-attacker" })
+    await store.rotateRefreshToken(original.tokenHash, next)
+
+    const successor = await store.findRefreshToken(next.tokenHash)
+    expect(successor).not.toBeNull()
+    expect(successor?.familyId).toBe("famX")
+  })
+
   it("revokeRefreshTokenFamily revokes every member atomically", async () => {
     const store = await freshStore()
     const t1 = refreshInput({ familyId: "famA" })
@@ -377,32 +412,35 @@ describe("sqliteTokenStore — refresh tokens", () => {
       const nextB = refreshInput({ familyId: "concurrent" })
 
       // Two writers race to rotate the same predecessor. SQLite's RESERVED
-      // lock under BEGIN IMMEDIATE forces them to serialize; the loser may
-      // succeed (seeing the row before the winner finishes) or be retried by
-      // better-sqlite3 — either way, the family must not end up with two
-      // un-rotated successors of the *same* original.
+      // lock under BEGIN IMMEDIATE serializes them. The first writer rotates
+      // the predecessor and mints a successor. The second writer sees the
+      // already-rotated row inside its transaction and revokes the entire
+      // family (spec §14: reuse revokes the family) — wiping the predecessor
+      // and any successor minted by the first writer.
       const results = await Promise.allSettled([
         a.rotateRefreshToken(original.tokenHash, nextA),
         b.rotateRefreshToken(original.tokenHash, nextB),
       ])
-      // Both may resolve (a silent no-op on whichever ran second after the
-      // other's UPDATE), or one may reject under SQLITE_BUSY — we just
-      // require no uncaught crash and the family invariant below.
       for (const r of results) {
         if (r.status === "rejected") {
           expect(String(r.reason)).toMatch(/SQLITE_BUSY|database is locked|locked/i)
         }
       }
 
-      // The original must be rotated.
+      // Outcome: either both writers serialized cleanly and the second one
+      // detected the replay and revoked the family (everything is gone), or
+      // one rejected under SQLITE_BUSY and only the winner's rows survive.
+      // In neither case can two un-rotated successors of the same predecessor
+      // coexist in the family.
       const originalRow = await a.findRefreshToken(original.tokenHash)
-      expect(originalRow?.rotatedAt).toBeInstanceOf(Date)
-
-      // At least one of the candidates must be persisted as the successor,
-      // and no row should have an un-rotated duplicate of the original hash.
       const inA = await a.findRefreshToken(nextA.tokenHash)
       const inB = await a.findRefreshToken(nextB.tokenHash)
-      expect(inA !== null || inB !== null).toBe(true)
+      const unRotated = [inA, inB].filter((r) => r !== null && r.rotatedAt === null)
+      expect(unRotated.length).toBeLessThanOrEqual(1)
+      if (originalRow !== null) {
+        // The predecessor survived → at most one successor minted.
+        expect(originalRow.rotatedAt).toBeInstanceOf(Date)
+      }
     } finally {
       db2.close()
     }
