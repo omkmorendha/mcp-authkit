@@ -14,6 +14,14 @@ export {
   type JwtValidatorOptions,
 } from "./auth/jwt.js"
 export {
+  BypassProductionError,
+  type CheckBypassOptions,
+  checkBypassConfig,
+  shouldAutoEnableBypass,
+  synthesizeBypassContext,
+  synthesizeStaticContext,
+} from "./bypass/index.js"
+export {
   type MintedPat,
   mintPat,
   type ParsedPat,
