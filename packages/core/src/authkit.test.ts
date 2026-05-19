@@ -1,5 +1,7 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { memoryTokenStore } from "mcp-authkit-store-memory"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { z } from "zod"
 import {
   createAuthKit,
   extractBearer,
@@ -7,7 +9,7 @@ import {
   runPipeline,
   timingSafeStringEqual,
 } from "./authkit.js"
-import { createPat } from "./pats/lifecycle.js"
+import { createPat, revokePat } from "./pats/lifecycle.js"
 import { startTestAS, type TestAS } from "./test/fixtures/as.js"
 import type { AuthKitConfig } from "./types.js"
 
@@ -390,5 +392,229 @@ describe("runPipeline: audit events", () => {
     })
     await runPipeline(config, result.token, config.audit?.onEvent)
     expect(events).toContain("pat.use")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Security tests (spec §14)
+// ---------------------------------------------------------------------------
+
+describe("security: revoked PAT is rejected", () => {
+  it("rejects a PAT that has been revoked", async () => {
+    const store = memoryTokenStore()
+    const config = makeConfig({
+      auth: { ...makeConfig().auth, tokenStore: store, pat: { enabled: true, prefix: "mcp_pat_" } },
+    })
+    const patConfig = {
+      prefix: "mcp_pat_",
+      defaultExpiryDays: 90,
+      maxExpiryDays: 365,
+      rotationGraceSeconds: 0,
+    }
+    const { token, stored } = await createPat(store, patConfig, {
+      userIdentifier: "u1",
+      name: "test-revoke",
+      scopes: ["read:data"],
+      expiresInDays: 1,
+    })
+    await revokePat(store, stored.id, "u1")
+    const result = await runPipeline(config, token)
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe("security: PAT scope escalation is prevented (spec §14)", () => {
+  it("clamps effective scopes to resolveUserScopes — PAT cannot escalate", async () => {
+    const store = memoryTokenStore()
+    const config = makeConfig({
+      auth: { ...makeConfig().auth, tokenStore: store, pat: { enabled: true, prefix: "mcp_pat_" } },
+      // User has only read:data; PAT stamps write:data in addition
+      resolveUserScopes: async () => ["read:data"],
+    })
+    const patConfig = {
+      prefix: "mcp_pat_",
+      defaultExpiryDays: 90,
+      maxExpiryDays: 365,
+      rotationGraceSeconds: 0,
+    }
+    const { token } = await createPat(store, patConfig, {
+      userIdentifier: "u1",
+      name: "escalation-attempt",
+      scopes: ["read:data", "write:data", "admin:all"],
+      expiresInDays: 1,
+    })
+    const result = await runPipeline(config, token)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // Effective scopes must not include write:data or admin:all
+    expect(result.auth.scopes).toEqual(["read:data"])
+    expect(result.auth.scopes).not.toContain("write:data")
+    expect(result.auth.scopes).not.toContain("admin:all")
+  })
+})
+
+describe("security: static token with insufficient scopes is denied at the tool gate", () => {
+  it("registerTool emits scope.deny when static token lacks required scope", async () => {
+    const deniedScopes: string[] = []
+    const config = makeConfig({
+      auth: {
+        ...makeConfig().auth,
+        staticToken: { token: "ci-token", user: "ci-bot", scopes: ["read:data"] },
+      },
+      audit: {
+        onEvent: (e) => {
+          if (e.type === "scope.deny" && "required" in e.detail) {
+            deniedScopes.push(e.detail.required as string)
+          }
+        },
+      },
+    })
+    const kit = createAuthKit(config)
+    const mcp = new McpServer({ name: "test", version: "0.0.1" })
+
+    kit.registerTool(mcp, {
+      name: "privileged-tool",
+      description: "needs admin",
+      inputSchema: {},
+      requireScopes: ["admin:all"],
+      handler: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
+    })
+
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal MCP SDK object for test purposes
+    const tools = (mcp as any)._registeredTools as Record<
+      string,
+      {
+        handler: (
+          input: Record<string, unknown>,
+          extra: Record<string, unknown>,
+        ) => Promise<unknown>
+      }
+    >
+    const toolResult = (await tools["privileged-tool"]?.handler(
+      {},
+      { authInfo: { token: "ci-token" } },
+    )) as { content: Array<{ type: string; text: string }>; isError?: boolean }
+
+    expect(toolResult?.isError).toBe(true)
+    expect(deniedScopes).toContain("admin:all")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// registerTool: scope gate (scope.allow / scope.deny)
+// ---------------------------------------------------------------------------
+
+// Helper: get a registered tool's handler from McpServer internals.
+function getToolHandler(
+  mcp: McpServer,
+  name: string,
+):
+  | ((input: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>)
+  | undefined {
+  // biome-ignore lint/suspicious/noExplicitAny: accessing internal MCP SDK object for test purposes
+  const tools = (mcp as any)._registeredTools as Record<
+    string,
+    {
+      handler: (input: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>
+    }
+  >
+  return tools[name]?.handler
+}
+
+describe("registerTool: scope gate", () => {
+  it("invokes handler when required scopes are satisfied", async () => {
+    const config = makeConfig({
+      auth: {
+        ...makeConfig().auth,
+        bypass: { enabled: true, user: "dev", scopes: ["read:data", "write:data"] },
+      },
+    })
+    const kit = createAuthKit(config)
+    const mcp = new McpServer({ name: "test", version: "0.0.1" })
+
+    kit.registerTool(mcp, {
+      name: "echo",
+      description: "echo tool",
+      inputSchema: { message: z.string() },
+      requireScopes: ["read:data"],
+      handler: async ({ input }) => ({
+        content: [{ type: "text" as const, text: input.message }],
+      }),
+    })
+
+    const handler = getToolHandler(mcp, "echo")
+    expect(handler).toBeDefined()
+    const result = (await handler?.({ message: "hello" }, {})) as {
+      content: Array<{ type: string; text: string }>
+      isError?: boolean
+    }
+    expect(result.isError).toBeFalsy()
+    expect(result.content[0]?.text).toBe("hello")
+  })
+
+  it("returns Forbidden when required scope is missing", async () => {
+    const config = makeConfig({
+      auth: {
+        ...makeConfig().auth,
+        bypass: { enabled: true, user: "dev", scopes: ["read:data"] },
+      },
+    })
+    const kit = createAuthKit(config)
+    const mcp = new McpServer({ name: "test", version: "0.0.1" })
+
+    kit.registerTool(mcp, {
+      name: "admin-tool",
+      description: "needs admin",
+      inputSchema: {},
+      requireScopes: ["admin:all"],
+      handler: async () => ({ content: [{ type: "text" as const, text: "should not reach" }] }),
+    })
+
+    const handler = getToolHandler(mcp, "admin-tool")
+    const result = (await handler?.({}, {})) as {
+      content: Array<{ type: string; text: string }>
+      isError?: boolean
+    }
+    expect(result?.isError).toBe(true)
+    expect(result?.content[0]?.text).toContain("Forbidden")
+  })
+
+  it("emits scope.allow and scope.deny audit events", async () => {
+    const events: Array<{ type: string; detail: Record<string, unknown> }> = []
+    const config: AuthKitConfig = {
+      ...makeConfig(),
+      auth: {
+        ...makeConfig().auth,
+        bypass: { enabled: true, user: "dev", scopes: ["read:data"] },
+      },
+      audit: {
+        onEvent: (e) => {
+          events.push({ type: e.type, detail: e.detail as Record<string, unknown> })
+        },
+      },
+    }
+    const kit = createAuthKit(config)
+    const mcp = new McpServer({ name: "test", version: "0.0.1" })
+
+    kit.registerTool(mcp, {
+      name: "allowed-tool",
+      description: "allowed",
+      inputSchema: {},
+      requireScopes: ["read:data"],
+      handler: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
+    })
+    kit.registerTool(mcp, {
+      name: "denied-tool",
+      description: "denied",
+      inputSchema: {},
+      requireScopes: ["admin:all"],
+      handler: async () => ({ content: [{ type: "text" as const, text: "nope" }] }),
+    })
+
+    await getToolHandler(mcp, "allowed-tool")?.({}, {})
+    await getToolHandler(mcp, "denied-tool")?.({}, {})
+
+    expect(events.some((e) => e.type === "scope.allow")).toBe(true)
+    expect(events.some((e) => e.type === "scope.deny")).toBe(true)
   })
 })
