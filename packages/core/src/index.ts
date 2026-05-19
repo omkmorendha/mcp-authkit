@@ -13,6 +13,7 @@ export {
   type JwtValidator,
   type JwtValidatorOptions,
 } from "./auth/jwt.js"
+export { createAuthKit, extractBearer, runPipeline } from "./authkit.js"
 export {
   BypassProductionError,
   type CheckBypassOptions,
@@ -56,21 +57,20 @@ export {
   scopeMatches,
   subtract,
 } from "./scopes/index.js"
-export { createAuthKit, runPipeline } from "./authkit.js"
-export {
-  type AuditEvent,
-  type AuthContext,
-  type AuthKit,
-  type AuthKitConfig,
-  type CreatePatInput,
-  type CreateRefreshTokenInput,
-  type Handlers,
-  type RegisterToolOptions,
-  type ScopeMatcher,
-  type ScopeVocabulary,
-  type ScopeVocabularyEntry,
-  type StoredPat,
-  type StoredPatPublic,
-  type StoredRefreshToken,
-  type TokenStore,
+export type {
+  AuditEvent,
+  AuthContext,
+  AuthKit,
+  AuthKitConfig,
+  CreatePatInput,
+  CreateRefreshTokenInput,
+  Handlers,
+  RegisterToolOptions,
+  ScopeMatcher,
+  ScopeVocabulary,
+  ScopeVocabularyEntry,
+  StoredPat,
+  StoredPatPublic,
+  StoredRefreshToken,
+  TokenStore,
 } from "./types.js"
