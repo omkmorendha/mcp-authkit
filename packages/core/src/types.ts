@@ -178,6 +178,18 @@ export interface AuthKitConfig {
   audit?: {
     onEvent?: (event: AuditEvent) => void | Promise<void>
   }
+
+  /**
+   * HTTP-level configuration shared across all handlers.
+   *
+   * Spec §14 mandates DNS-rebinding protection (Host header validation) on
+   * by default with a configurable allowlist. When `allowedHosts` is
+   * omitted, the host of `resourceIndicator` is used. Pass an empty array
+   * to disable explicitly (NOT recommended).
+   */
+  http?: {
+    allowedHosts?: readonly string[]
+  }
 }
 
 export interface RegisterToolOptions<I extends z.ZodRawShape> {

@@ -9,7 +9,6 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks"
 import { createHash, timingSafeEqual } from "node:crypto"
-import type { IncomingMessage, ServerResponse } from "node:http"
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import pino from "pino"
@@ -21,7 +20,12 @@ import {
   synthesizeBypassContext,
   synthesizeStaticContext,
 } from "./bypass/index.js"
-import { findPatByHash, updatePatLastUsed } from "./pats/lifecycle.js"
+import { writeChallenge, metadataUrlFor } from "./handlers/challenge.js"
+import { hostFromResourceIndicator, type HostValidationOptions } from "./handlers/host.js"
+import { createMcpHandler } from "./handlers/mcp.js"
+import { createMetadataHandler } from "./handlers/metadata.js"
+import { createPatsHandler } from "./handlers/pats.js"
+import { findPatByHash, type PatLifecycleConfig, updatePatLastUsed } from "./pats/lifecycle.js"
 import { satisfies } from "./scopes/satisfies.js"
 import type {
   AuditEvent,
@@ -238,6 +242,31 @@ export async function runPipeline(
   return { ok: false, reason: "no matching auth method" }
 }
 
+/**
+ * Resolve the Host-header allowlist for handlers. Falls back to the host of
+ * `resourceIndicator` when not explicitly configured (spec §14).
+ */
+function resolveHostOptions(config: AuthKitConfig): HostValidationOptions {
+  const configured = config.http?.allowedHosts
+  if (configured !== undefined) return { allowedHosts: configured }
+  const derived = hostFromResourceIndicator(config.resourceIndicator)
+  return { allowedHosts: derived === null ? [] : [derived] }
+}
+
+/**
+ * Resolve PAT lifecycle config from the `AuthKitConfig.auth.pat` block.
+ * Applies spec §8.5 defaults: 90-day default expiry, 365-day cap.
+ */
+function resolvePatLifecycleConfig(config: AuthKitConfig): PatLifecycleConfig {
+  const pat = config.auth.pat
+  return {
+    prefix: pat.prefix ?? "mcp_pat_",
+    defaultExpiryDays: pat.defaultExpiryDays ?? 90,
+    maxExpiryDays: pat.maxExpiryDays ?? 365,
+    rotationGraceSeconds: pat.rotationGraceSeconds ?? 0,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // createAuthKit
 // ---------------------------------------------------------------------------
@@ -334,24 +363,45 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
     mcp.tool(options.name, options.description, options.inputSchema, mcpCallback)
   }
 
-  function handlers(_mcp: McpServer): Handlers {
-    // Full HTTP handler wiring is issue #36. These stubs satisfy the AuthKit
-    // interface shape; they will be replaced when #36 lands.
-    const notImplemented = async (_req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      res.writeHead(501, { "Content-Type": "application/json" })
-      res.end(JSON.stringify({ error: "not_implemented" }))
-    }
+  function handlers(mcp: McpServer): Handlers {
+    const host = resolveHostOptions(config)
+    const runPipelineBound = (bearer: string | null) => runPipeline(config, bearer, onEvent)
+
+    const mcpHandler = createMcpHandler({
+      mcp,
+      resourceIndicator: config.resourceIndicator,
+      host,
+      runPipeline: runPipelineBound,
+      authContextStorage,
+    })
+
+    const metadataHandler = createMetadataHandler({
+      resourceIndicator: config.resourceIndicator,
+      ...(config.auth.authorizationServer
+        ? { authorizationServerIssuer: config.auth.authorizationServer.issuer }
+        : {}),
+      vocabulary: config.scopes.vocabulary,
+      host,
+    })
+
+    const patsHandler = createPatsHandler({
+      tokenStore: config.auth.tokenStore,
+      lifecycleConfig: resolvePatLifecycleConfig(config),
+      resourceIndicator: config.resourceIndicator,
+      host,
+      runPipeline: runPipelineBound,
+      ...(onEvent ? { audit: onEvent } : {}),
+    })
 
     return {
-      mcp: notImplemented,
-      metadata: notImplemented,
-      pats: notImplemented,
-      challenge: (res: ServerResponse, reason?: string) => {
-        const params = [`resource="${config.resourceIndicator}"`]
-        if (reason) params.push(`error="${reason}"`)
-        res.setHeader("WWW-Authenticate", `Bearer ${params.join(", ")}`)
-        res.writeHead(401)
-        res.end()
+      mcp: mcpHandler,
+      metadata: metadataHandler,
+      pats: patsHandler,
+      challenge: (res, reason) => {
+        writeChallenge(res, {
+          resourceMetadataUrl: metadataUrlFor(config.resourceIndicator),
+          ...(reason ? { error: "invalid_token", errorDescription: reason } : {}),
+        })
       },
     }
   }
