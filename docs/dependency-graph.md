@@ -139,9 +139,9 @@ graph TD
 
 **#41 — security test matrix.** Can run in parallel with #42 once Stage 3 is done.
 
-# v0.2
+## v0.2
 
-## Stage 1 (v0.2 storage)
+### Stage 1 (v0.2 storage)
 
 ```mermaid
 graph TD
@@ -154,7 +154,7 @@ All three are independent. Start with Postgres — it exercises the
 migration pattern SQLite reuses, and Redis is a decorator whose
 integration tests use the memory store.
 
-## Stage 2 (v0.2 OAuth flows)
+### Stage 2 (v0.2 OAuth flows)
 
 ```mermaid
 graph TD
@@ -167,7 +167,7 @@ graph TD
 All four independent. Token Exchange gates the Stage 3 upstream helper,
 so prioritize it on the critical path.
 
-## Stage 3 (v0.2 multi-tenant + upstream)
+### Stage 3 (v0.2 multi-tenant + upstream)
 
 ```mermaid
 graph TD
@@ -176,7 +176,7 @@ graph TD
     TX2["Stage 2: Token Exchange"] --> UP
 ```
 
-## Stage 4 (v0.2 adapters, CLI, config)
+### Stage 4 (v0.2 adapters, CLI, config)
 
 ```mermaid
 graph TD
@@ -186,11 +186,11 @@ graph TD
     CF --> CL
 ```
 
-## Stage 5 (v0.2 production stdio)
+### Stage 5 (v0.2 production stdio)
 
 Single issue, independent of every other v0.2 stage.
 
-## Stage 6 (v0.2 examples + docs)
+### Stage 6 (v0.2 examples + docs)
 
 Lands after Stages 1–5 are mostly done.
 
@@ -202,7 +202,7 @@ graph TD
     DOCS["Production deployment doc + cookbook"]
 ```
 
-## Stage 7 (v0.2 hardening + release)
+### Stage 7 (v0.2 hardening + release)
 
 ```mermaid
 graph TD
