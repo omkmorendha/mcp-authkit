@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "e2e": "bash e2e/python/run.sh"
   },
   "packageManager": "pnpm@10.30.0",
   "engines": {
