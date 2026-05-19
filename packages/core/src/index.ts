@@ -15,6 +15,16 @@ export {
   verifyPat,
 } from "./pats/format.js"
 export {
+  expand,
+  intersect,
+  matchesAny,
+  normalize,
+  satisfies,
+  scope,
+  scopeMatches,
+  subtract,
+} from "./scopes/index.js"
+export {
   type AuditEvent,
   type AuthContext,
   type AuthKit,
