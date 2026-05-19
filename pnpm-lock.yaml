@@ -113,6 +113,22 @@ importers:
         specifier: ^7.0.0
         version: 7.2.2
 
+  packages/config:
+    dependencies:
+      mcp-authkit-store-memory:
+        specifier: workspace:*
+        version: link:../store-memory
+      tsx:
+        specifier: ^4.22.3
+        version: 4.22.3
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.0
+        version: 25.9.0
+
   packages/core:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -124,6 +140,9 @@ importers:
       mcp-authkit-adapter-express:
         specifier: workspace:*
         version: link:../adapter-express
+      mcp-authkit-config:
+        specifier: workspace:*
+        version: link:../config
       mcp-authkit-store-memory:
         specifier: workspace:*
         version: link:../store-memory
