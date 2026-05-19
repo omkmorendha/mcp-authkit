@@ -2,8 +2,17 @@
   "name": "mcp-authkit-monorepo",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
   "packageManager": "pnpm@10.30.0",
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
