@@ -30,7 +30,9 @@ export function init(options: InitOptions): void {
   const out = options.stdout ?? process.stdout
 
   if (existsSync(target)) {
-    const entries = readdirSync(target).filter((e) => !e.startsWith("."))
+    // Any entry — including dotfiles — counts. Treat hidden state as
+    // existing state; --force is the explicit opt-in to overwrite.
+    const entries = readdirSync(target)
     if (entries.length > 0 && options.force !== true) {
       throw new CliError(
         ExitCode.userError,

@@ -58,10 +58,19 @@ describe("init", () => {
     expect(existsSync(join(workdir, "mcp-authkit.config.ts"))).toBe(true)
   })
 
-  it("ignores dotfile-only contents (`.git`, `.DS_Store`) for non-empty check", () => {
+  it("treats dotfile-only contents as non-empty unless --force is passed", () => {
     writeFileSync(join(workdir, ".hiddenfile"), "x", "utf8")
     expect(() =>
       init({ path: workdir, logger: silentLogger, stdout: new PassThrough(), cwd: workdir }),
+    ).toThrow(/non-empty directory/)
+    expect(() =>
+      init({
+        path: workdir,
+        force: true,
+        logger: silentLogger,
+        stdout: new PassThrough(),
+        cwd: workdir,
+      }),
     ).not.toThrow()
   })
 })

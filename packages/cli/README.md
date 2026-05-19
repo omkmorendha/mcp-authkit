@@ -16,7 +16,7 @@ pnpm dlx mcp-authkit-cli --help
 
 ## Commands
 
-```
+```text
 mcp-authkit <command> [options]
 
 Commands:

@@ -33,14 +33,18 @@ const DEFAULT_EXPIRY_DAYS = 90
 const MAX_EXPIRY_DAYS = 365 * 5
 
 export async function mintPatCommand(options: MintPatOptions): Promise<void> {
-  if (options.user.trim().length === 0) {
+  const user = options.user.trim()
+  const name = options.name.trim()
+  const scopes = options.scopes.map((s) => s.trim()).filter((s) => s.length > 0)
+
+  if (user.length === 0) {
     throw new CliError(ExitCode.userError, "--user must be a non-empty string")
   }
-  if (options.name.trim().length === 0) {
+  if (name.length === 0) {
     throw new CliError(ExitCode.userError, "--name must be a non-empty string")
   }
-  if (options.scopes.length === 0) {
-    throw new CliError(ExitCode.userError, "--scopes must list at least one scope")
+  if (scopes.length === 0) {
+    throw new CliError(ExitCode.userError, "--scopes must list at least one non-empty scope")
   }
 
   const days = options.expiresInDays ?? DEFAULT_EXPIRY_DAYS
@@ -86,9 +90,9 @@ export async function mintPatCommand(options: MintPatOptions): Promise<void> {
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
   const minted = mintPat(prefix)
   const input: CreatePatInput = {
-    userIdentifier: options.user,
-    name: options.name,
-    scopes: [...options.scopes],
+    userIdentifier: user,
+    name,
+    scopes,
     expiresAt,
     tokenHash: minted.tokenHash,
     display: buildDisplay(prefix, minted.token),

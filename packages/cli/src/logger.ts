@@ -12,6 +12,9 @@
  * even at `--log-level debug`.
  */
 
+// Matches pino's level set (spec §5.7). `silent` is included because pino
+// itself supports it and tests use it to suppress runtime chatter without
+// touching the assertion path. Operator-facing docs list the six core levels.
 const LEVELS = ["trace", "debug", "info", "warn", "error", "fatal", "silent"] as const
 
 export type LogLevel = (typeof LEVELS)[number]
