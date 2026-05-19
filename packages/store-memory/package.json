@@ -17,8 +17,5 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "mcp-authkit": "workspace:*"
   }
 }

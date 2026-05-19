@@ -26,6 +26,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
+      mcp-authkit-store-memory:
+        specifier: workspace:*
+        version: link:../store-memory
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -37,11 +40,7 @@ importers:
         specifier: ^25.9.0
         version: 25.9.0
 
-  packages/store-memory:
-    dependencies:
-      mcp-authkit:
-        specifier: workspace:*
-        version: link:../core
+  packages/store-memory: {}
 
 packages:
 
