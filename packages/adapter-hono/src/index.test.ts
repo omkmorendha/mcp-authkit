@@ -18,6 +18,14 @@ import { describe, expect, it, vi } from "vitest"
 
 import { type AuthKitLike, honoHandlers, honoMiddleware, type RawHandlers } from "./index.js"
 
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void } {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 interface Fake {
   authkit: AuthKitLike
   mcp: McpServer
@@ -213,7 +221,7 @@ describe("streaming response (Hono-specific)", () => {
     // If the body were buffered, step (2) would deadlock — the reader
     // couldn't see A until end(), and the test couldn't resolve the
     // gate. Streaming makes A visible immediately.
-    const gate = Promise.withResolvers<void>()
+    const gate = deferred<void>()
     const fake = fakeAuthKit({
       mcp: async (_req, res) => {
         res.statusCode = 200

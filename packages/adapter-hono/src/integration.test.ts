@@ -32,6 +32,14 @@ import type { AuthKitConfig } from "../../core/src/types.js"
 
 import { honoMiddleware } from "./index.js"
 
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void } {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 const AUDIENCE = "http://api.example.test/"
 
 interface Rig {
@@ -207,7 +215,7 @@ describe("Hono adapter integration", () => {
       // handler called `end()`, and the handler couldn't call `end()`
       // until the gate resolves. The gate only resolves AFTER the
       // reader sees the first chunk, proving streaming.
-      const gate = Promise.withResolvers<void>()
+      const gate = deferred<void>()
       let receivedFirstChunk: ((value: string) => void) | null = null
       const firstChunkSeen = new Promise<string>((resolve) => {
         receivedFirstChunk = resolve
