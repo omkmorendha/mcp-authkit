@@ -9,6 +9,14 @@ export {
   scopeMatches,
   subtract,
 } from "./scopes/index.js"
+export {
+  checkSignedStdioConfig,
+  createSignedStdioTransport,
+  SignedStdioConfigError,
+  type SignedStdioTransport,
+  type SignedStdioTransportOptions,
+  type StdioTeardownReason,
+} from "./stdio/index.js"
 export type {
   AuditEvent,
   AuthContext,

@@ -28,6 +28,7 @@ import { createMetadataHandler } from "./handlers/metadata.js"
 import { createPatsHandler } from "./handlers/pats.js"
 import { findPatByHash, type PatLifecycleConfig, updatePatLastUsed } from "./pats/lifecycle.js"
 import { satisfies } from "./scopes/satisfies.js"
+import { checkSignedStdioConfig } from "./stdio/index.js"
 import type { AuthContext, AuthKit, AuthKitConfig, Handlers, RegisterToolOptions } from "./types.js"
 
 // ---------------------------------------------------------------------------
@@ -283,6 +284,12 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
 
   // Validate bypass config at startup — throws BypassProductionError if unsafe.
   checkBypassConfig({ config, logger })
+
+  // Validate signed stdio config at startup (spec v0.2 §11). Throws
+  // SignedStdioConfigError if bypass is enabled alongside signed stdio, or
+  // if the mode is unknown / the key is empty. Emits the loud startup warn
+  // when the mode is active.
+  checkSignedStdioConfig({ config, logger })
 
   // Resolve the Host allowlist once at startup. This throws fail-closed when
   // the resource indicator can't yield a host and the consumer didn't pass

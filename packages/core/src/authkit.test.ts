@@ -318,6 +318,33 @@ describe("createAuthKit", () => {
       process.env.NODE_ENV = origEnv
     }
   })
+
+  it("throws when bypass is enabled alongside signed stdio (spec v0.2 §11)", () => {
+    expect(() =>
+      createAuthKit(
+        makeConfig({
+          auth: {
+            ...makeConfig().auth,
+            bypass: { enabled: true, user: "dev", scopes: [] },
+            stdio: { mode: "signed", hmacKey: "k".repeat(32) },
+          },
+        }),
+      ),
+    ).toThrow(/signed stdio/i)
+  })
+
+  it("accepts signed stdio when bypass is absent", () => {
+    expect(() =>
+      createAuthKit(
+        makeConfig({
+          auth: {
+            ...makeConfig().auth,
+            stdio: { mode: "signed", hmacKey: "k".repeat(32) },
+          },
+        }),
+      ),
+    ).not.toThrow()
+  })
 })
 
 // ---------------------------------------------------------------------------
