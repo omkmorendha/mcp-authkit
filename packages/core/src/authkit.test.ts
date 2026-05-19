@@ -288,6 +288,18 @@ describe("createAuthKit", () => {
     }
   })
 
+  it("throws when resourceIndicator cannot derive a host and http.allowedHosts is unset (spec §14)", () => {
+    expect(() => createAuthKit(makeConfig({ resourceIndicator: "not a url" }))).toThrow(
+      /allowlist/i,
+    )
+  })
+
+  it("accepts unparseable resourceIndicator when http.allowedHosts is provided explicitly", () => {
+    expect(() =>
+      createAuthKit(makeConfig({ resourceIndicator: "not a url", http: { allowedHosts: [] } })),
+    ).not.toThrow()
+  })
+
   it("allows bypass in production with allowInProduction: true", () => {
     const origEnv = process.env["NODE_ENV"]
     process.env["NODE_ENV"] = "production"

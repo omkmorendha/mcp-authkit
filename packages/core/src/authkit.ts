@@ -233,12 +233,23 @@ export async function runPipeline(
 /**
  * Resolve the Host-header allowlist for handlers. Falls back to the host of
  * `resourceIndicator` when not explicitly configured (spec §14).
+ *
+ * Throws when no allowlist is configured and the resource indicator does not
+ * yield a derivable host. Falling back to an empty list would silently
+ * disable DNS-rebinding protection, which spec §14 forbids.
  */
 function resolveHostOptions(config: AuthKitConfig): HostValidationOptions {
   const configured = config.http?.allowedHosts
   if (configured !== undefined) return { allowedHosts: configured }
   const derived = hostFromResourceIndicator(config.resourceIndicator)
-  return { allowedHosts: derived === null ? [] : [derived] }
+  if (derived === null) {
+    throw new Error(
+      `mcp-authkit: cannot derive a Host allowlist from resourceIndicator ${JSON.stringify(
+        config.resourceIndicator,
+      )}. Provide http.allowedHosts explicitly (pass [] only to opt out of DNS-rebinding protection).`,
+    )
+  }
+  return { allowedHosts: [derived] }
 }
 
 /**
@@ -272,6 +283,12 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
 
   // Validate bypass config at startup — throws BypassProductionError if unsafe.
   checkBypassConfig({ config, logger })
+
+  // Resolve the Host allowlist once at startup. This throws fail-closed when
+  // the resource indicator can't yield a host and the consumer didn't pass
+  // http.allowedHosts explicitly — spec §14 forbids silently disabling
+  // DNS-rebinding protection.
+  const host = resolveHostOptions(config)
 
   // AsyncLocalStorage allows the HTTP mcp handler (issue #36) to inject an
   // AuthContext into the async context so registerTool handlers can read it
@@ -352,7 +369,6 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   }
 
   function handlers(mcp: McpServer): Handlers {
-    const host = resolveHostOptions(config)
     const runPipelineBound = (bearer: string | null) => runPipeline(config, bearer, onEvent)
 
     const mcpHandler = createMcpHandler({
