@@ -2,8 +2,21 @@
   "name": "mcp-authkit-monorepo",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
   "packageManager": "pnpm@10.30.0",
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.15",
+    "typescript": "^5.9.3"
   }
 }
