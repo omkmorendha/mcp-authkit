@@ -56,6 +56,7 @@ export {
   scopeMatches,
   subtract,
 } from "./scopes/index.js"
+export { createAuthKit, runPipeline } from "./authkit.js"
 export {
   type AuditEvent,
   type AuthContext,
@@ -63,7 +64,6 @@ export {
   type AuthKitConfig,
   type CreatePatInput,
   type CreateRefreshTokenInput,
-  createAuthKit,
   type Handlers,
   type RegisterToolOptions,
   type ScopeMatcher,
