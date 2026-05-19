@@ -101,14 +101,17 @@ export class OAuthError extends Error {
   readonly errorDescription?: string
   readonly status?: number
 
-  constructor(opts: {
-    kind: "as_error" | "transport" | "discovery" | "invalid_response"
-    message: string
-    error?: string
-    errorDescription?: string
-    status?: number
-  }) {
-    super(opts.message)
+  constructor(
+    opts: {
+      kind: "as_error" | "transport" | "discovery" | "invalid_response"
+      message: string
+      error?: string
+      errorDescription?: string
+      status?: number
+    },
+    errorOpts?: ErrorOptions,
+  ) {
+    super(opts.message, errorOpts)
     this.name = "OAuthError"
     this.kind = opts.kind
     if (opts.error !== undefined) this.error = opts.error
@@ -231,9 +234,10 @@ export async function registerClient(opts: RegisterClientOptions): Promise<Regis
 /**
  * Discover the RFC 8414 `registration_endpoint` for an issuer.
  *
- * RFC 8414 §3: metadata URL is `${issuer}/.well-known/oauth-authorization-server`.
- * We follow the simpler form that the spec example uses — suffix join — which
- * is what every public AS implements in practice for path-less issuers.
+ * RFC 8414 §3: when the issuer has a path component, the well-known segment
+ * is inserted *before* that path. So `https://host/realms/demo` yields
+ * `https://host/.well-known/oauth-authorization-server/realms/demo`, not a
+ * trailing-suffix join.
  */
 async function discoverRegistrationEndpoint(
   issuer: string,
@@ -254,6 +258,9 @@ async function discoverRegistrationEndpoint(
   const metadata = await pending
   const endpoint = metadata.registration_endpoint
   if (typeof endpoint !== "string" || endpoint.length === 0) {
+    // Sticky failure prevention: a fixed AS should recover on the next
+    // call without a process restart.
+    metadataCache.delete(key)
     throw new OAuthError({
       kind: "discovery",
       message: "AS metadata is missing registration_endpoint",
@@ -262,12 +269,24 @@ async function discoverRegistrationEndpoint(
   return endpoint
 }
 
+function buildMetadataUrl(issuerNoTrailingSlash: string): string {
+  // RFC 8414 §3: insert /.well-known/oauth-authorization-server *before*
+  // the issuer's path component. Pathless issuers fall through to a plain
+  // suffix join, which matches the prior behavior.
+  const parsed = new URL(issuerNoTrailingSlash)
+  const issuerPath = parsed.pathname.replace(/\/+$/, "")
+  parsed.pathname = `/.well-known/oauth-authorization-server${issuerPath}`
+  parsed.search = ""
+  parsed.hash = ""
+  return parsed.toString()
+}
+
 async function fetchMetadata(
   issuerNoTrailingSlash: string,
   doFetch: FetchLike,
   timeoutMs: number,
 ): Promise<AsMetadata> {
-  const url = `${issuerNoTrailingSlash}/.well-known/oauth-authorization-server`
+  const url = buildMetadataUrl(issuerNoTrailingSlash)
   let response: Awaited<ReturnType<FetchLike>>
   try {
     response = await doFetch(url, {
