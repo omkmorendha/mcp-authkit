@@ -50,6 +50,10 @@
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
     },
+    "./adapters/hono": {
+      "types": "./dist/adapters/hono.d.ts",
+      "import": "./dist/adapters/hono.js"
+    },
     "./oauth/token-exchange": {
       "types": "./dist/oauth/token-exchange.d.ts",
       "import": "./dist/oauth/token-exchange.js"
@@ -76,6 +80,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "jose": "^6.2.3",
     "mcp-authkit-adapter-express": "workspace:*",
+    "mcp-authkit-adapter-hono": "workspace:*",
     "mcp-authkit-cli": "workspace:*",
     "mcp-authkit-config": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*",

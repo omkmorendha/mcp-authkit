@@ -113,6 +113,21 @@ importers:
         specifier: ^7.0.0
         version: 7.2.2
 
+  packages/adapter-hono:
+    devDependencies:
+      '@hono/node-server':
+        specifier: ^1.19.0
+        version: 1.19.14(hono@4.12.21)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      '@types/node':
+        specifier: ^25.9.0
+        version: 25.9.0
+      hono:
+        specifier: ^4.0.0
+        version: 4.12.21
+
   packages/cli:
     dependencies:
       commander:
@@ -159,6 +174,9 @@ importers:
       mcp-authkit-adapter-express:
         specifier: workspace:*
         version: link:../adapter-express
+      mcp-authkit-adapter-hono:
+        specifier: workspace:*
+        version: link:../adapter-hono
       mcp-authkit-cli:
         specifier: workspace:*
         version: link:../cli
