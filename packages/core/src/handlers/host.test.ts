@@ -67,4 +67,16 @@ describe("validateHost", () => {
     const r = validateHost(reqWithHost("anything.test"), { allowedHosts: [] })
     expect(r.ok).toBe(true)
   })
+
+  it("bracketed IPv6 host-only allowlist entry matches any port on that address", () => {
+    const r = validateHost(reqWithHost("[::1]:12345"), { allowedHosts: ["[::1]"] })
+    expect(r.ok).toBe(true)
+  })
+
+  it("bracketed IPv6 with port matches only the exact port", () => {
+    const ok = validateHost(reqWithHost("[::1]:3000"), { allowedHosts: ["[::1]:3000"] })
+    expect(ok.ok).toBe(true)
+    const wrongPort = validateHost(reqWithHost("[::1]:9999"), { allowedHosts: ["[::1]:3000"] })
+    expect(wrongPort.ok).toBe(false)
+  })
 })

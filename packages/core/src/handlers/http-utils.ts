@@ -30,7 +30,12 @@ export async function readJsonBody<T = unknown>(
   for await (const chunk of req) {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string)
     total += buf.length
-    if (total > maxBytes) return { ok: false, reason: "too_large" }
+    if (total > maxBytes) {
+      // Destroy the socket so the peer stops streaming and the connection
+      // isn't reused with unread bytes still buffered.
+      req.destroy()
+      return { ok: false, reason: "too_large" }
+    }
     chunks.push(buf)
   }
   if (total === 0) return { ok: false, reason: "empty" }

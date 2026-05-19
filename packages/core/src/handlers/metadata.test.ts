@@ -71,6 +71,24 @@ describe("createMetadataHandler", () => {
     expect(JSON.parse(out.body).resource).toBe(RESOURCE)
   })
 
+  it("allows HEAD with 200 (mirrors GET status)", async () => {
+    const handler = createMetadataHandler({
+      resourceIndicator: RESOURCE,
+      vocabulary: { "echo:say": { description: "echo" } },
+      host: { allowedHosts: [] },
+    })
+    const { res, get } = mockRes()
+    await handler(
+      {
+        method: "HEAD",
+        headers: { host: "api.example.com" },
+        url: "/.well-known/oauth-protected-resource",
+      } as import("node:http").IncomingMessage,
+      res,
+    )
+    expect(get().status).toBe(200)
+  })
+
   it("rejects non-GET with 405", async () => {
     const handler = createMetadataHandler({
       resourceIndicator: RESOURCE,

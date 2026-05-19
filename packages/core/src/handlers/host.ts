@@ -59,13 +59,43 @@ export function validateHost(
     return { ok: false, reason: "missing" }
   }
   const presented = header.toLowerCase()
-  const presentedHost = presented.split(":")[0] ?? presented
+  const presentedHost = stripPort(presented)
 
   for (const entry of options.allowedHosts) {
     const e = entry.toLowerCase()
     if (e === presented) return { ok: true }
-    // Entry without a port matches any port on that host.
-    if (!e.includes(":") && e === presentedHost) return { ok: true }
+    // A host-only allowlist entry (no `:port`) matches any port on that
+    // host. Bracketed IPv6 with no trailing port is also host-only.
+    if (isHostOnly(e) && e === presentedHost) return { ok: true }
   }
   return { ok: false, reason: "disallowed" }
+}
+
+/**
+ * Strip the `:port` suffix from a Host header value, preserving bracketed
+ * IPv6 literals. `[::1]:3000` → `[::1]`; `[::1]` → `[::1]`;
+ * `api.example.com:3000` → `api.example.com`.
+ */
+function stripPort(host: string): string {
+  if (host.startsWith("[")) {
+    const close = host.indexOf("]")
+    if (close === -1) return host
+    return host.slice(0, close + 1)
+  }
+  const colon = host.indexOf(":")
+  return colon === -1 ? host : host.slice(0, colon)
+}
+
+/**
+ * True if `entry` carries no `:port` component. Bracketed IPv6 with no
+ * trailing port (`[::1]`) counts as host-only; with a port (`[::1]:3000`)
+ * does not.
+ */
+function isHostOnly(entry: string): boolean {
+  if (entry.startsWith("[")) {
+    const close = entry.indexOf("]")
+    if (close === -1) return false
+    return close === entry.length - 1
+  }
+  return !entry.includes(":")
 }

@@ -57,50 +57,69 @@ export function createMcpHandler(
   })
   let connected: Promise<void> | null = null
   const ensureConnected = (): Promise<void> => {
-    // Cast: SDK's Transport interface uses optional callbacks (`onclose?:`)
-    // while the transport class exposes them as accessors of `(() => void)
-    // | undefined`. Under `exactOptionalPropertyTypes` these are not
-    // mutually assignable; the runtime shapes are compatible.
-    if (connected === null) connected = deps.mcp.connect(transport as unknown as Transport)
+    if (connected === null) {
+      // Cast: SDK's Transport interface uses optional callbacks (`onclose?:`)
+      // while the transport class exposes them as accessors of `(() => void)
+      // | undefined`. Under `exactOptionalPropertyTypes` these are not
+      // mutually assignable; the runtime shapes are compatible.
+      const p = deps.mcp.connect(transport as unknown as Transport)
+      // If connect rejects, clear the cache so the next request retries
+      // instead of returning the poisoned Promise forever.
+      connected = p.catch((err) => {
+        connected = null
+        throw err
+      })
+    }
     return connected
   }
 
   return async (req, res) => {
-    const hostCheck = validateHost(req, deps.host)
-    if (!hostCheck.ok) {
-      // Don't issue a Bearer challenge for a DNS-rebinding rejection — the
-      // client is presenting a forged Host, not a credential problem.
-      if (!res.headersSent) {
-        res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" })
-        res.end(
-          JSON.stringify({
-            error: "forbidden",
-            error_description: `Host header ${hostCheck.reason}`,
-          }),
-        )
+    try {
+      const hostCheck = validateHost(req, deps.host)
+      if (!hostCheck.ok) {
+        // Don't issue a Bearer challenge for a DNS-rebinding rejection — the
+        // client is presenting a forged Host, not a credential problem.
+        if (!res.headersSent) {
+          res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+          res.end(
+            JSON.stringify({
+              error: "forbidden",
+              error_description: `Host header ${hostCheck.reason}`,
+            }),
+          )
+        }
+        return
       }
-      return
-    }
 
-    const bearer = extractBearer(req.headers.authorization)
-    const result = await deps.runPipeline(bearer)
-    if (!result.ok) {
-      writeChallenge(res, {
-        resourceMetadataUrl: metadataUrlFor(deps.resourceIndicator),
-        ...(bearer === null
-          ? {}
-          : { error: "invalid_token" as const, errorDescription: result.reason }),
+      const bearer = extractBearer(req.headers.authorization)
+      const result = await deps.runPipeline(bearer)
+      if (!result.ok) {
+        writeChallenge(res, {
+          resourceMetadataUrl: metadataUrlFor(deps.resourceIndicator),
+          ...(bearer === null
+            ? {}
+            : { error: "invalid_token" as const, errorDescription: result.reason }),
+        })
+        return
+      }
+
+      await ensureConnected()
+
+      // Inject AuthContext into the async context so tool handlers (registered
+      // via `authkit.registerTool`) can read it from ALS without threading
+      // it through the SDK call stack.
+      await deps.authContextStorage.run(result.auth, async () => {
+        await transport.handleRequest(req, res)
       })
-      return
+    } catch (_err) {
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+        res.end(
+          JSON.stringify({ error: "internal_error", error_description: "Internal server error" }),
+        )
+      } else {
+        res.end()
+      }
     }
-
-    await ensureConnected()
-
-    // Inject AuthContext into the async context so tool handlers (registered
-    // via `authkit.registerTool`) can read it from ALS without threading
-    // it through the SDK call stack.
-    await deps.authContextStorage.run(result.auth, async () => {
-      await transport.handleRequest(req, res)
-    })
   }
 }

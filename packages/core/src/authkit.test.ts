@@ -306,6 +306,27 @@ describe("createAuthKit", () => {
       process.env["NODE_ENV"] = origEnv
     }
   })
+
+  it("throws when resourceIndicator is unparseable and no allowedHosts is set (spec §14 fail-closed)", () => {
+    expect(() =>
+      createAuthKit(
+        makeConfig({
+          resourceIndicator: "not a url",
+        }),
+      ),
+    ).toThrow(/Host allowlist/)
+  })
+
+  it("permits explicit empty allowedHosts as opt-out even with bad resourceIndicator", () => {
+    expect(() =>
+      createAuthKit(
+        makeConfig({
+          resourceIndicator: "not a url",
+          http: { allowedHosts: [] },
+        }),
+      ),
+    ).not.toThrow()
+  })
 })
 
 // ---------------------------------------------------------------------------
