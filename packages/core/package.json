@@ -2,6 +2,26 @@
   "name": "mcp-authkit",
   "version": "0.1.0",
   "type": "module",
+  "description": "OAuth + PAT auth for MCP servers — token validation pipeline, scope matcher, PAT lifecycle, audit dispatch.",
+  "license": "MIT",
+  "author": "Om Morendha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omkmorendha/mcp-authkit.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/omkmorendha/mcp-authkit#readme",
+  "bugs": {
+    "url": "https://github.com/omkmorendha/mcp-authkit/issues"
+  },
+  "keywords": [
+    "mcp",
+    "oauth",
+    "auth",
+    "pat",
+    "authkit",
+    "model-context-protocol"
+  ],
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

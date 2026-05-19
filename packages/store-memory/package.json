@@ -2,6 +2,25 @@
   "name": "mcp-authkit-store-memory",
   "version": "0.1.0",
   "type": "module",
+  "description": "In-memory TokenStore for mcp-authkit — PATs, refresh tokens, and family revocation. For development and tests.",
+  "license": "MIT",
+  "author": "Om Morendha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omkmorendha/mcp-authkit.git",
+    "directory": "packages/store-memory"
+  },
+  "homepage": "https://github.com/omkmorendha/mcp-authkit#readme",
+  "bugs": {
+    "url": "https://github.com/omkmorendha/mcp-authkit/issues"
+  },
+  "keywords": [
+    "mcp",
+    "oauth",
+    "authkit",
+    "token-store",
+    "model-context-protocol"
+  ],
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

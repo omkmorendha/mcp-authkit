@@ -2,6 +2,25 @@
   "name": "mcp-authkit-adapter-express",
   "version": "0.1.0",
   "type": "module",
+  "description": "Express adapter for mcp-authkit — mounts MCP, metadata, and PAT handlers as Express middleware.",
+  "license": "MIT",
+  "author": "Om Morendha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omkmorendha/mcp-authkit.git",
+    "directory": "packages/adapter-express"
+  },
+  "homepage": "https://github.com/omkmorendha/mcp-authkit#readme",
+  "bugs": {
+    "url": "https://github.com/omkmorendha/mcp-authkit/issues"
+  },
+  "keywords": [
+    "mcp",
+    "oauth",
+    "express",
+    "authkit",
+    "model-context-protocol"
+  ],
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
