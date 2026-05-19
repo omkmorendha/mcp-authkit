@@ -270,8 +270,8 @@ describe("runPipeline: no match (step 6)", () => {
 
 describe("createAuthKit", () => {
   it("throws BypassProductionError in production with bypass enabled", () => {
-    const origEnv = process.env["NODE_ENV"]
-    process.env["NODE_ENV"] = "production"
+    const origEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
     try {
       expect(() =>
         createAuthKit(
@@ -284,7 +284,7 @@ describe("createAuthKit", () => {
         ),
       ).toThrow()
     } finally {
-      process.env["NODE_ENV"] = origEnv
+      process.env.NODE_ENV = origEnv
     }
   })
 
@@ -301,8 +301,8 @@ describe("createAuthKit", () => {
   })
 
   it("allows bypass in production with allowInProduction: true", () => {
-    const origEnv = process.env["NODE_ENV"]
-    process.env["NODE_ENV"] = "production"
+    const origEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
     try {
       expect(() =>
         createAuthKit(
@@ -315,7 +315,7 @@ describe("createAuthKit", () => {
         ),
       ).not.toThrow()
     } finally {
-      process.env["NODE_ENV"] = origEnv
+      process.env.NODE_ENV = origEnv
     }
   })
 })
