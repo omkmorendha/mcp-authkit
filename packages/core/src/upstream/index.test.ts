@@ -230,14 +230,27 @@ describe("createUpstreamFor", () => {
   })
 
   describe("LRU fallback", () => {
-    it("warns at construction when the store omits the cache methods", () => {
+    it("warns on first use when the store omits the cache methods", async () => {
       const { store } = buildFakeStore({ withCacheMethods: false })
       const logger = { warn: vi.fn() }
-      createUpstreamFor({ issuer: ISSUER, tokenStore: store, logger, exchange: mockedExchange() })
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        tokenStore: store,
+        logger,
+        exchange: mockedExchange(),
+      })(AUDIENCE)
+      // Construction itself stays quiet — startup logs are precious in
+      // production stdio mode and we don't want a fallback notice on every
+      // server that never calls upstreamFor.
+      expect(logger.warn).not.toHaveBeenCalled()
+      await fetcher({ auth: buildAuth(), scopes: ["read"] })
       expect(logger.warn).toHaveBeenCalledTimes(1)
       const call = logger.warn.mock.calls[0]?.[0]
       expect(call).toBeDefined()
       expect(call?.capacity).toBe(UPSTREAM_LRU_CAPACITY)
+      // And only once: subsequent calls don't re-warn.
+      await fetcher({ auth: buildAuth({ subject: "other" }), scopes: ["read"] })
+      expect(logger.warn).toHaveBeenCalledTimes(1)
     })
 
     it("caches and serves from the in-process LRU when the store lacks methods", async () => {
@@ -258,10 +271,16 @@ describe("createUpstreamFor", () => {
       expect(exchange).toHaveBeenCalledTimes(1)
     })
 
-    it("does not warn when the store provides both cache methods", () => {
+    it("does not warn when the store provides both cache methods", async () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const logger = { warn: vi.fn() }
-      createUpstreamFor({ issuer: ISSUER, tokenStore: store, logger, exchange: mockedExchange() })
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        tokenStore: store,
+        logger,
+        exchange: mockedExchange(),
+      })(AUDIENCE)
+      await fetcher({ auth: buildAuth(), scopes: ["read"] })
       expect(logger.warn).not.toHaveBeenCalled()
     })
   })

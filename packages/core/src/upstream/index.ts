@@ -110,8 +110,10 @@ export function createUpstreamFor(
     typeof helperConfig.tokenStore.findUpstreamCredential === "function"
 
   const fallbackCache: LruCache | null = storeHasCache ? null : new LruCache(UPSTREAM_LRU_CAPACITY)
-
-  if (fallbackCache !== null) {
+  let fallbackWarned = false
+  const warnFallbackOnce = (): void => {
+    if (fallbackWarned || fallbackCache === null) return
+    fallbackWarned = true
     helperConfig.logger?.warn(
       { capacity: UPSTREAM_LRU_CAPACITY },
       "upstream-credentials: token store does not implement cacheUpstreamCredential/findUpstreamCredential; falling back to in-process LRU",
@@ -125,6 +127,7 @@ export function createUpstreamFor(
       throw new Error("upstreamFor: audience must be a non-empty string")
     }
     return async (args: UpstreamForArgs): Promise<UpstreamCredential> => {
+      warnFallbackOnce()
       const { auth, scopes } = args
       const subjectToken = extractSubjectToken(auth)
       const sortedScopes = [...scopes].sort()
