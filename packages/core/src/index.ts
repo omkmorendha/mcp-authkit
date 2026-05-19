@@ -1,4 +1,11 @@
 export {
+  createJwtValidator,
+  type JwtValidationFailureReason,
+  type JwtValidationResult,
+  type JwtValidator,
+  type JwtValidatorOptions,
+} from "./auth/jwt.js"
+export {
   type MintedPat,
   mintPat,
   type ParsedPat,
