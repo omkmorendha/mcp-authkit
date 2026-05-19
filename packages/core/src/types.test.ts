@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
+import { it } from "vitest"
 import { z } from "zod"
 import type { AuthContext, AuthKitConfig, createAuthKit, Handlers } from "./index.js"
 
@@ -136,7 +137,9 @@ type ExpectedFactorySignature = (config: AuthKitConfig) => import("./index.js").
 
 const factorySignatureMatches: Assert<IsExact<FactorySignature, ExpectedFactorySignature>> = true
 
-void config
-void factorySignatureMatches
-void handlers
-void options
+it("public types satisfy their expected shapes", () => {
+  void config
+  void factorySignatureMatches
+  void handlers
+  void options
+})
