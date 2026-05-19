@@ -1,35 +1,36 @@
-# Plan: chore: pnpm workspace + tsconfig base (#1)
+# Plan: chore: biome lint+format config (#2)
 
 ## Spec anchors
+- docs/spec/v0.1.md#0-v01-scope
 - docs/spec/v0.1.md#2-hard-constraints-locked-decisions
-- docs/spec/v0.1.md#16-project-structure-v01
+- docs/spec/v0.1.md#14-security-non-negotiables
+- docs/spec/v0.1.md#15-testing
+- docs/spec/v0.1.md#18-quality-bar-for-v01
+- CLAUDE.md#8-tooling
 
 ## Approach
-Bootstrap only the repository-level workspace and TypeScript configuration needed by later Stage 0 issues. Keep the root package private and ESM-oriented, with Node 20 declared in both package metadata and a version pin file so contributors and CI resolve the same runtime family. Add a shared `tsconfig.base.json` that encodes the strict TypeScript defaults from CLAUDE.md and the issue, then keep the root `tsconfig.json` minimal so package skeleton issues can add project references when those packages exist. Do not create package directories, package manifests, tooling configs, CI, tests, or source code in this issue.
+Add Biome as the repository's single lint and format tool at the root, matching the locked tooling decision and avoiding ESLint, Prettier, package-specific overrides, or source-level changes. Use one `biome.json` that enables formatting, linting, and assist actions for TypeScript/JavaScript and JSON files, with explicit formatting options for 2-space indentation, double quotes, semicolons as needed, and a 100-column line width. Promote the issue-required rules to errors, including `suspicious.noExplicitAny`, `correctness.noUnusedVariables`, import organization through Biome assist, and an ESM-oriented rule set that rejects CommonJS where supported by the installed Biome version. Wire root `package.json` scripts so `pnpm lint` performs a non-mutating Biome check, `pnpm lint:fix` applies safe check fixes and import organization, `pnpm format` writes formatting changes, and `pnpm format:check` verifies formatting only. Pin `@biomejs/biome` as a root dev dependency and update the pnpm lockfile without introducing runtime code.
 
 ## Files to create / change
-- `pnpm-workspace.yaml` — declare `packages/*` and `examples/*` workspace globs.
-- `package.json` — private monorepo manifest named `mcp-authkit-monorepo`, ESM-only, Node >=20 engine, and minimal workspace scripts only if they can run without package/tooling setup.
-- `tsconfig.base.json` — shared strict NodeNext/ES2022 TypeScript compiler options with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
-- `tsconfig.json` — root config extending the base, with no source includes and no package references until package skeletons exist.
-- `.gitignore` — ignore `node_modules`, `dist`, logs, `.DS_Store`, and `coverage`.
-- `.nvmrc` — pin the Node 20 family for local development.
+- `biome.json` — root Biome configuration for TypeScript/JavaScript and JSON linting, formatting, import organization, and excludes.
+- `package.json` — add `@biomejs/biome` as a dev dependency and root scripts: `lint`, `lint:fix`, `format`, and `format:check`.
+- `pnpm-lock.yaml` — update the lockfile for the Biome dev dependency.
 
 ## Public API surface
-None. This issue creates repository scaffolding only and must not add exports, package entry points, source files, or public types.
+None. This issue is tooling-only and must not add exports, package entry points, source files, public types, or any config-file API for consumers.
 
 ## Test plan
-- Unit: N/A for pure workspace scaffolding; no runtime logic is introduced.
-- Integration: Run `pnpm install` from the repo root and verify it completes cleanly with the empty workspace.
-- Security: N/A; no auth, token, secret, or request-handling code is introduced.
-- Tooling sanity: If `tsc` is not added as a dependency in this issue, do not run `pnpm typecheck`; that belongs to the package/tooling issues. If a root script is added, verify it does not fail solely because later package skeletons are absent.
+- Unit: N/A; no runtime logic is introduced.
+- Integration: Run `pnpm install --lockfile-only` or equivalent dependency installation for the dev dependency, then run `pnpm lint`, `pnpm format:check`, and `pnpm lint:fix` against the current scaffold to verify the configured commands succeed.
+- Security: Verify `suspicious.noExplicitAny` is configured as an error so future source cannot use explicit `any`, supporting spec §14 and §18's public API quality requirements. No token, PAT, host, OAuth, or request-handling behavior is touched.
 
 ## Risks / open questions
-- Should `.nvmrc` use an exact current Node 20 patch version or the broader `20` selector? I plan to use `20` to satisfy "pins Node 20.x" without forcing patch churn.
-- Should root scripts be omitted until biome, vitest, and packages exist? I plan to keep scripts minimal or absent so this issue does not stub later tooling work.
+- Biome's `noExplicitAny` and `noUnusedVariables` rules are documented and available in current Biome; before implementation, confirm the exact installed Biome version accepts the selected ESM/CommonJS rule name so the config does not fail schema validation.
+- `pnpm lint:fix` will likely need `biome check --write .` rather than `biome lint --write .` because import organization is an assist action included by `check`, not plain `lint`.
+- The current scaffold includes Markdown files, which Biome does not format as project prose; the implementation should scope Biome includes/excludes so `pnpm lint` exits 0 on the empty/scaffold tree without pretending to validate docs.
 
 ## Out of scope (reaffirmed from issue)
-- Per-package `package.json` files.
-- Package directories and source code.
-- biome, vitest, or GitHub Actions configuration.
-- Any implementation of public API types or auth behavior.
+- ESLint or Prettier.
+- Per-package Biome overrides.
+- Source files, tests, package skeletons, CI workflow changes, or auth behavior.
+- Any v0.2+ config file format such as `mcp-authkit.config.ts`.
