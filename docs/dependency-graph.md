@@ -50,7 +50,9 @@ graph TD
 skeleton and tooling issue is blocked on it. #11 (README) can be done
 in parallel by a second contributor since it has no dependencies.
 
-## Stage 1 (active)
+## Stage 1 (complete)
+
+All issues closed.
 
 ```mermaid
 graph TD
@@ -67,20 +69,72 @@ graph TD
     I26 --> I27
 ```
 
+## Stage 2 (active)
+
+```mermaid
+graph TD
+    I35["#35 token validation pipeline + createAuthKit"]
+    I36["#36 framework-agnostic handlers"]
+    I37["#37 audit event dispatch"]
+    I38["#38 bypass mode + static token"]
+
+    I38 --> I35
+    I35 --> I36
+    I35 --> I37
+    I37 --> I36
+```
+
 ### Reading the graph
 
-- **No Stage 1 blockers (start here):** #23 (scope matcher),
-  #24 (PAT format), #26 (JWT validation). All three can run in
-  parallel.
-- **Unblocks the most:** #24 and #23 both gate #25 (PAT lifecycle),
-  which in turn gates #28 (memory store).
-- **Leaves:** #27 (introspection), #28 (memory store). Stage 1 is
-  "done" when both leaves close along with the matcher (#23).
+- **No Stage 2 blockers (start here):** #38 (bypass mode) and #35 (pipeline).
+  #38 is a clean prerequisite with no Stage 2 dependencies; #35 can begin
+  immediately since all Stage 1 primitives are closed.
+- **Unblocks the most:** #35 gates both #36 and #37; all three must close
+  before Stage 3 can start.
+- **Leaves:** #36 (handlers) and #37 (audit). Stage 2 is done when both close.
 
-### Recommended starting issue (Stage 1)
+### Recommended starting issue (Stage 2)
 
-**#23 — scope matcher.** It's a self-contained, pure module that
-gates the PAT lifecycle's scope-intersection logic and the eventual
-Stage 2 tool dispatcher. **#24 (PAT format)** and **#26 (JWT
-validation)** are equally good parallel starts for additional
-contributors.
+**#35 — token validation pipeline + `createAuthKit` factory.** It is the
+central wiring point for all Stage 1 primitives and gates everything else
+in Stage 2. **#38 (bypass mode)** is a clean parallel start.
+
+## Stage 3 (pending Stage 2)
+
+```mermaid
+graph TD
+    I39["#39 Express adapter"]
+    I40["#40 hello-world example"]
+
+    I39 --> I40
+```
+
+### Reading the graph
+
+- **No Stage 3 blockers:** #39 (Express adapter) opens when #36 closes.
+- **Leaf:** #40 (hello-world). Stage 3 is done when #40 closes.
+
+### Recommended starting issue (Stage 3)
+
+**#39 — Express adapter.** Thin wrapper; opens immediately after #36.
+
+## Stage 4 (pending Stage 3)
+
+```mermaid
+graph TD
+    I41["#41 security test matrix"]
+    I42["#42 Python E2E test"]
+    I43["#43 quickstart doc + release prep"]
+
+    I41 --> I43
+    I42 --> I43
+```
+
+### Reading the graph
+
+- **No Stage 4 blockers:** #41 opens when #36/#37/#38 close; #42 opens when #40 closes.
+- **Leaf:** #43 (release prep). Stage 4 — and v0.1 — is done when #43 closes.
+
+### Recommended starting issue (Stage 4)
+
+**#41 — security test matrix.** Can run in parallel with #42 once Stage 3 is done.
