@@ -26,7 +26,15 @@ The full deferred list lives in [spec §0](docs/spec/v0.1.md#0-v01-scope). v0.1 
 - Multi-tenant authorization server mode.
 - Dynamic Client Registration, JWT Bearer Assertion, Client Credentials, token exchange, or on-behalf-of helpers.
 
+## Quickstart
+
+The [`docs/quickstart.md`](docs/quickstart.md) guide walks you from
+`pnpm add mcp-authkit` to a running OAuth-protected MCP server,
+minting a PAT with `curl`, and calling a tool — in a few minutes,
+with no prior MCP experience required.
+
 ## Docs
 
+- Quickstart: [`docs/quickstart.md`](docs/quickstart.md)
 - Source of truth: [`docs/spec/v0.1.md`](docs/spec/v0.1.md)
-- Quickstart placeholder: [`docs/quickstart.md`](docs/quickstart.md)
+- Release notes: [`CHANGELOG.md`](CHANGELOG.md)
