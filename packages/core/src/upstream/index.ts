@@ -162,7 +162,7 @@ export function createUpstreamFor(
             audience,
             scopes: sortedScopes,
             reason: reasonOf(err),
-            message: err instanceof Error ? err.message : String(err),
+            errorClass: err instanceof Error ? err.name : typeof err,
           },
         })
         throw err
