@@ -1,0 +1,32 @@
+node_modules
+dist
+build
+.turbo
+.next
+coverage
+*.log
+.DS_Store
+
+# env
+.env
+.env.local
+.env.*.local
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# tool caches
+.eslintcache
+.tsbuildinfo
+*.tsbuildinfo
+
+# pnpm
+.pnpm-store
+
+# claude
+.claude/settings.local.json
+
+# worktrees (kept outside repo, but ignore if anyone drops one in)
+worktrees/
