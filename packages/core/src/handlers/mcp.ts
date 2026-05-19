@@ -61,46 +61,68 @@ export function createMcpHandler(
     // while the transport class exposes them as accessors of `(() => void)
     // | undefined`. Under `exactOptionalPropertyTypes` these are not
     // mutually assignable; the runtime shapes are compatible.
-    if (connected === null) connected = deps.mcp.connect(transport as unknown as Transport)
+    if (connected === null) {
+      // Clear the cached promise on rejection so the next request can retry.
+      // Without this, a transient failure during the first connect would
+      // permanently wedge the handler.
+      const p = deps.mcp.connect(transport as unknown as Transport)
+      connected = p.catch((err: unknown) => {
+        connected = null
+        throw err
+      })
+    }
     return connected
   }
 
   return async (req, res) => {
-    const hostCheck = validateHost(req, deps.host)
-    if (!hostCheck.ok) {
-      // Don't issue a Bearer challenge for a DNS-rebinding rejection — the
-      // client is presenting a forged Host, not a credential problem.
-      if (!res.headersSent) {
-        res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" })
-        res.end(
-          JSON.stringify({
-            error: "forbidden",
-            error_description: `Host header ${hostCheck.reason}`,
-          }),
-        )
+    try {
+      const hostCheck = validateHost(req, deps.host)
+      if (!hostCheck.ok) {
+        // Don't issue a Bearer challenge for a DNS-rebinding rejection — the
+        // client is presenting a forged Host, not a credential problem.
+        if (!res.headersSent) {
+          res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+          res.end(
+            JSON.stringify({
+              error: "forbidden",
+              error_description: `Host header ${hostCheck.reason}`,
+            }),
+          )
+        }
+        return
       }
-      return
-    }
 
-    const bearer = extractBearer(req.headers.authorization)
-    const result = await deps.runPipeline(bearer)
-    if (!result.ok) {
-      writeChallenge(res, {
-        resourceMetadataUrl: metadataUrlFor(deps.resourceIndicator),
-        ...(bearer === null
-          ? {}
-          : { error: "invalid_token" as const, errorDescription: result.reason }),
+      const bearer = extractBearer(req.headers.authorization)
+      const result = await deps.runPipeline(bearer)
+      if (!result.ok) {
+        writeChallenge(res, {
+          resourceMetadataUrl: metadataUrlFor(deps.resourceIndicator),
+          ...(bearer === null
+            ? {}
+            : { error: "invalid_token" as const, errorDescription: result.reason }),
+        })
+        return
+      }
+
+      await ensureConnected()
+
+      // Inject AuthContext into the async context so tool handlers (registered
+      // via `authkit.registerTool`) can read it from ALS without threading
+      // it through the SDK call stack.
+      await deps.authContextStorage.run(result.auth, async () => {
+        await transport.handleRequest(req, res)
       })
-      return
+    } catch {
+      // Last-resort guard: an unhandled throw in the request path must not
+      // crash the server. If we can still write a status, emit a generic 500
+      // (no error detail leaked); otherwise the transport has already begun
+      // streaming and there is nothing safe to add.
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+        res.end(JSON.stringify({ error: "internal_error", error_description: "Internal error" }))
+      } else if (!res.writableEnded) {
+        res.end()
+      }
     }
-
-    await ensureConnected()
-
-    // Inject AuthContext into the async context so tool handlers (registered
-    // via `authkit.registerTool`) can read it from ALS without threading
-    // it through the SDK call stack.
-    await deps.authContextStorage.run(result.auth, async () => {
-      await transport.handleRequest(req, res)
-    })
   }
 }
