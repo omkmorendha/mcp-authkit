@@ -37,6 +37,10 @@
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
+    },
+    "./oauth/token-exchange": {
+      "types": "./dist/oauth/token-exchange.d.ts",
+      "import": "./dist/oauth/token-exchange.js"
     }
   },
   "files": [
