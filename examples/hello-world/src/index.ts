@@ -1,12 +1,12 @@
-// Runnable protected MCP server. See README.md and spec §6.2.
-// Bypass mode default-on for local dev; set MCP_AUTHKIT_BYPASS=0 to require
-// real tokens. Spec §11.1 refuses bypass under NODE_ENV=production.
+// Runnable protected MCP server (spec §6.2). Bypass default-on for local
+// dev; set MCP_AUTHKIT_BYPASS=0 to require real tokens (spec §11.1).
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import express from "express"
 import { createAuthKit } from "mcp-authkit"
 import { expressHandlers } from "mcp-authkit/adapters/express"
 import { memoryTokenStore } from "mcp-authkit/stores/memory"
+import pino from "pino"
 import { z } from "zod"
 
 const port = Number.parseInt(process.env.PORT ?? "3000", 10)
@@ -42,9 +42,8 @@ authkit.registerTool(mcp, {
 })
 
 const h = expressHandlers(authkit, mcp)
-// No global express.json(): framework handlers read the raw stream.
-const app = express()
+const app = express() // no express.json(): handlers read the raw stream
 app.use("/mcp", h.mcp)
 app.use("/.well-known/oauth-protected-resource", h.metadata)
 app.use("/pats", h.pats)
-app.listen(port, () => console.log(`hello-world listening on :${port}`))
+app.listen(port, () => pino({ name: "hello-world" }).info({ port }, "listening"))
