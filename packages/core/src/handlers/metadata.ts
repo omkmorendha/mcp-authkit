@@ -13,8 +13,8 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { ScopeVocabulary } from "../types.js"
-import { methodNotAllowed, sendError, sendJson } from "./http-utils.js"
 import { type HostValidationOptions, validateHost } from "./host.js"
+import { methodNotAllowed, sendError, sendJson } from "./http-utils.js"
 
 export interface MetadataHandlerOptions {
   readonly resourceIndicator: string

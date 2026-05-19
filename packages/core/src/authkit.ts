@@ -20,8 +20,8 @@ import {
   synthesizeBypassContext,
   synthesizeStaticContext,
 } from "./bypass/index.js"
-import { writeChallenge, metadataUrlFor } from "./handlers/challenge.js"
-import { hostFromResourceIndicator, type HostValidationOptions } from "./handlers/host.js"
+import { metadataUrlFor, writeChallenge } from "./handlers/challenge.js"
+import { type HostValidationOptions, hostFromResourceIndicator } from "./handlers/host.js"
 import { createMcpHandler } from "./handlers/mcp.js"
 import { createMetadataHandler } from "./handlers/metadata.js"
 import { createPatsHandler } from "./handlers/pats.js"

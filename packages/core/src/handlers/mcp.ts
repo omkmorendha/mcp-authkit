@@ -14,6 +14,7 @@
  * @module
  */
 import type { AsyncLocalStorage } from "node:async_hooks"
+import { randomUUID } from "node:crypto"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
@@ -46,9 +47,14 @@ export interface McpHandlerDeps {
 export function createMcpHandler(
   deps: McpHandlerDeps,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
-  // Stateless mode: omit sessionIdGenerator entirely (SDK's contract for
-  // stateless is "field absent", not "field set to undefined").
-  const transport = new StreamableHTTPServerTransport({})
+  // Stateful mode with auto-generated session IDs. The SDK's stateless mode
+  // requires a fresh transport per request, which is incompatible with our
+  // single-McpServer model (McpServer.connect throws if invoked twice).
+  // Stateful + UUID gives us a single long-lived transport bound to the
+  // server; clients send `Mcp-Session-Id` after the initialize handshake.
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  })
   let connected: Promise<void> | null = null
   const ensureConnected = (): Promise<void> => {
     // Cast: SDK's Transport interface uses optional callbacks (`onclose?:`)
@@ -67,7 +73,10 @@ export function createMcpHandler(
       if (!res.headersSent) {
         res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" })
         res.end(
-          JSON.stringify({ error: "forbidden", error_description: `Host header ${hostCheck.reason}` }),
+          JSON.stringify({
+            error: "forbidden",
+            error_description: `Host header ${hostCheck.reason}`,
+          }),
         )
       }
       return

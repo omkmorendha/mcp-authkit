@@ -68,8 +68,6 @@ export function metadataUrlFor(resourceIndicator: string): string {
   // Trim trailing slash to avoid `//`. RFC 9728 §3 is silent on trailing slashes;
   // consumers can override resourceMetadataUrl explicitly via createAuthKit if
   // they mount the metadata handler at a different path.
-  const base = resourceIndicator.endsWith("/")
-    ? resourceIndicator.slice(0, -1)
-    : resourceIndicator
+  const base = resourceIndicator.endsWith("/") ? resourceIndicator.slice(0, -1) : resourceIndicator
   return `${base}/.well-known/oauth-protected-resource`
 }
