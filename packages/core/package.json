@@ -41,6 +41,10 @@
     "./oauth/token-exchange": {
       "types": "./dist/oauth/token-exchange.d.ts",
       "import": "./dist/oauth/token-exchange.js"
+    },
+    "./oauth/dcr": {
+      "types": "./dist/oauth/dcr.d.ts",
+      "import": "./dist/oauth/dcr.js"
     }
   },
   "files": [
