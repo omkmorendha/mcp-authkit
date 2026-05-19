@@ -61,6 +61,12 @@ Branch protection enforces this on `main`. Do not push around it.
 - **No `--no-verify`**, no skipping hooks, no `--no-gpg-sign`.
 - **No force-push to `main`.** Force-push to feature branches only when
   necessary and never to a branch with an open review.
+- **Never commit `PLAN.md`.** It's a worktree-local planning artifact
+  produced by the `spec-issue` skill and consumed by `implement-issue`.
+  Committing it causes a guaranteed rebase conflict on every PR (every
+  branch writes its own PLAN.md to the repo root) and pollutes `main`
+  with transient working notes. It's gitignored — keep it that way.
+  The PR description is the durable record of intent.
 
 ## 5. Pull Requests
 
