@@ -1,25 +1,32 @@
 # mcp-authkit
 
-Production-grade OAuth 2.1 + Personal Access Tokens for Model Context Protocol servers.
+[![CI](https://img.shields.io/badge/CI-placeholder-lightgrey)](#)
 
-> **Status:** pre-v0.1, under active development. See [`docs/spec/v0.1.md`](docs/spec/v0.1.md)
-> for what's in scope and [`ROADMAP.md`](ROADMAP.md) for what's after that.
+> **Status: v0.1 in development.** The v0.1 spec is the source of truth:
+> [`docs/spec/v0.1.md`](docs/spec/v0.1.md).
 
-## What it is
+mcp-authkit is a framework-agnostic auth toolkit for Model Context Protocol servers: it helps server authors validate spec-compliant OAuth 2.1 tokens, issue Personal Access Tokens for scripts and CI, and enforce per-tool authorization without wiring auth logic into every handler.
 
-A framework-agnostic toolkit for building MCP servers that:
+## v0.1 scope
 
-- Validate OAuth 2.1 bearer tokens from any external AS (Auth0, Keycloak, WorkOS, Cognito, …) — RFC-compliant resource server behavior.
-- Issue and manage **Personal Access Tokens** so scripts and CI don't have to dread the auth.
-- Enforce **per-tool, per-operation scope checks** — not just "is this caller authenticated."
-- Stay out of the way: zero web-framework imports in core, Express adapter as a separate entry point.
+- Core package with token validation, PATs, scope matching, framework-agnostic handlers, bypass mode, and audit callbacks.
+- In-process `memoryTokenStore` for tests and local development.
+- Express adapter as the first web framework integration.
+- `hello-world` example with a minimal protected HTTP server and PAT issuance.
+- Unit, integration, and security tests for the core package.
+- Quickstart documentation that gets a developer to a running protected server.
 
-Built on `@modelcontextprotocol/sdk`. MCP spec revision **2025-06-18**.
+## Deferred
 
-## Quickstart
+The full deferred list lives in [spec §0](docs/spec/v0.1.md#0-v01-scope). v0.1 will not include:
 
-The hello-world example will live at [`examples/hello-world`](examples/hello-world) once the corresponding issue lands. The full quickstart guide is tracked under Stage 4 of the v0.1 roadmap.
+- Postgres, SQLite, Redis, filesystem, or production stdio support.
+- Hono adapter or additional examples beyond `hello-world`.
+- CLI commands or `mcp-authkit.config.ts`.
+- Multi-tenant authorization server mode.
+- Dynamic Client Registration, JWT Bearer Assertion, Client Credentials, token exchange, or on-behalf-of helpers.
 
-## Contributing
+## Docs
 
-Read [`CLAUDE.md`](CLAUDE.md) first. It applies to every contributor (human or otherwise) and lays out the workflow, security non-negotiables, and commit hygiene.
+- Source of truth: [`docs/spec/v0.1.md`](docs/spec/v0.1.md)
+- Quickstart placeholder: [`docs/quickstart.md`](docs/quickstart.md)
