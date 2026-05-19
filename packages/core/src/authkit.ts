@@ -38,7 +38,10 @@ import type {
   AuthorizationServerConfig,
   Handlers,
   RegisterToolOptions,
+  UpstreamCredential,
+  UpstreamForArgs,
 } from "./types.js"
+import { createUpstreamFor } from "./upstream/index.js"
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -519,6 +522,30 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
     }
   }
 
+  // upstreamFor is wired lazily so it can refuse cleanly at call time when no
+  // authorization server is configured (the helper requires RFC 8693 support,
+  // which implies an AS). Construction itself is cheap and is performed up
+  // front so the LRU-fallback startup warning fires when the AS is present
+  // but the store omits the optional cache methods.
+  const as = config.auth.authorizationServer
+  const upstreamForImpl = as
+    ? createUpstreamFor({
+        issuer: as.issuer,
+        tokenStore: config.auth.tokenStore,
+        ...(onEvent ? { audit: onEvent } : {}),
+        logger,
+      })
+    : null
+
+  const upstreamFor = (audience: string) => {
+    if (upstreamForImpl === null) {
+      throw new Error(
+        "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
+      )
+    }
+    return (args: UpstreamForArgs): Promise<UpstreamCredential> => upstreamForImpl(audience)(args)
+  }
+
   // The _authContextStorage and _runPipeline fields are used by the HTTP
   // handler (issue #36) to inject auth context and reuse the bound pipeline.
   // Not part of the public AuthKit interface; _ prefix signals internal use.
@@ -527,6 +554,7 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   return {
     registerTool,
     handlers,
+    upstreamFor,
     _authContextStorage: authContextStorage,
     _runPipeline: (bearer: string | null) => runPipeline(config, bearer, onEvent, { jwksRegistry }),
   } as AuthKit & {

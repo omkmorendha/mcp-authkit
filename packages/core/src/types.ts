@@ -60,6 +60,17 @@ export interface StoredRefreshToken extends CreateRefreshTokenInput {
   rotatedAt: Date | null
 }
 
+export interface CachedUpstreamCredential {
+  token: string
+  expiresAt: Date
+}
+
+export interface CacheUpstreamCredentialInput {
+  cacheKey: string
+  token: string
+  expiresAt: Date
+}
+
 export interface TokenStore {
   createPat(input: CreatePatInput): Promise<StoredPat>
   findPatByHash(hash: Buffer): Promise<StoredPat | null>
@@ -72,6 +83,20 @@ export interface TokenStore {
   findRefreshToken(hash: Buffer): Promise<StoredRefreshToken | null>
   rotateRefreshToken(oldHash: Buffer, next: CreateRefreshTokenInput): Promise<void>
   revokeRefreshTokenFamily(familyId: string): Promise<void>
+
+  /**
+   * Optional cache for the upstream-credentials helper (spec v0.2 §6.2).
+   * Stores omit this method to remain v0.1-compatible; when omitted the
+   * helper falls back to an in-process LRU and warns at startup.
+   */
+  cacheUpstreamCredential?(input: CacheUpstreamCredentialInput): Promise<void>
+
+  /**
+   * Optional cache lookup for the upstream-credentials helper (spec v0.2 §6.2).
+   * Implementations MUST return `null` for missing or expired entries — TTL
+   * is enforced inside the store.
+   */
+  findUpstreamCredential?(cacheKey: string): Promise<CachedUpstreamCredential | null>
 
   init?(): Promise<void>
   close?(): Promise<void>
@@ -110,6 +135,8 @@ export interface AuditEvent {
     | "oauth.reject"
     | "scope.allow"
     | "scope.deny"
+    | "upstream.exchange"
+    | "upstream.exchange_reject"
   at: Date
   subject: string | null
   tokenId: string | null
@@ -277,9 +304,38 @@ export interface Handlers {
   challenge: (res: ServerResponse, reason?: string) => void
 }
 
+/**
+ * Result of an upstream-credentials helper invocation (spec v0.2 §5.6).
+ *
+ * Carries only the minted upstream token — never the caller's subject token.
+ * The framework's "no token passthrough" rule (v0.1 §14) is enforced at the
+ * public-API boundary.
+ */
+export interface UpstreamCredential {
+  token: string
+  expiresAt: Date
+}
+
+/**
+ * Per-call arguments for the function returned by {@link AuthKit.upstreamFor}.
+ * `auth` is the `AuthContext` from a tool handler; the helper extracts the
+ * subject token from `auth.raw.access_token`.
+ */
+export interface UpstreamForArgs {
+  auth: AuthContext
+  scopes: readonly string[]
+}
+
 export interface AuthKit {
   registerTool<I extends z.ZodRawShape>(mcp: McpServer, options: RegisterToolOptions<I>): void
   handlers(mcp: McpServer): Handlers
+  /**
+   * Build an upstream-credentials fetcher bound to a single upstream
+   * audience (spec v0.2 §5.6). The returned function performs an RFC 8693
+   * token exchange (or returns a cached credential) and yields only the
+   * minted upstream token; the caller's subject token is never returned.
+   */
+  upstreamFor(audience: string): (args: UpstreamForArgs) => Promise<UpstreamCredential>
 }
 
 export { createAuthKit } from "./authkit.js"

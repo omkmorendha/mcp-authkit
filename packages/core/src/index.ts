@@ -25,6 +25,8 @@ export type {
   AuthorizationServerConfig,
   AuthorizationServerResolver,
   AuthorizationServerSelector,
+  CachedUpstreamCredential,
+  CacheUpstreamCredentialInput,
   CreatePatInput,
   CreateRefreshTokenInput,
   Handlers,
@@ -36,4 +38,6 @@ export type {
   StoredPatPublic,
   StoredRefreshToken,
   TokenStore,
+  UpstreamCredential,
+  UpstreamForArgs,
 } from "./types.js"
