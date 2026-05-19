@@ -1,35 +1,35 @@
-# Plan: chore: pnpm workspace + tsconfig base (#1)
+# Plan: chore: vitest config + sample test (#3)
 
 ## Spec anchors
-- docs/spec/v0.1.md#2-hard-constraints-locked-decisions
+- docs/spec/v0.1.md#15-testing
 - docs/spec/v0.1.md#16-project-structure-v01
+- docs/spec/v0.1.md#18-quality-bar-for-v01
+- CLAUDE.md#8-tooling
 
 ## Approach
-Bootstrap only the repository-level workspace and TypeScript configuration needed by later Stage 0 issues. Keep the root package private and ESM-oriented, with Node 20 declared in both package metadata and a version pin file so contributors and CI resolve the same runtime family. Add a shared `tsconfig.base.json` that encodes the strict TypeScript defaults from CLAUDE.md and the issue, then keep the root `tsconfig.json` minimal so package skeleton issues can add project references when those packages exist. Do not create package directories, package manifests, tooling configs, CI, tests, or source code in this issue.
+Add the repository-level Vitest wiring that later package and CI work can rely on, while keeping the change limited to test tooling and one harmless proof test. Use a root `vitest.config.ts` with an explicit include for `packages/*/src/**/*.test.ts` so tests stay colocated with package source as required by the repo conventions. Add root scripts for normal, watch, and coverage runs, and install Vitest plus its coverage provider as root dev dependencies. Because `packages/core` is not created on `origin/main` yet and issue #4 owns the package skeleton, create only the minimal `packages/core/src/sample.test.ts` file needed to prove discovery, without adding a package manifest, exports, source placeholders, or public API.
 
 ## Files to create / change
-- `pnpm-workspace.yaml` — declare `packages/*` and `examples/*` workspace globs.
-- `package.json` — private monorepo manifest named `mcp-authkit-monorepo`, ESM-only, Node >=20 engine, and minimal workspace scripts only if they can run without package/tooling setup.
-- `tsconfig.base.json` — shared strict NodeNext/ES2022 TypeScript compiler options with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
-- `tsconfig.json` — root config extending the base, with no source includes and no package references until package skeletons exist.
-- `.gitignore` — ignore `node_modules`, `dist`, logs, `.DS_Store`, and `coverage`.
-- `.nvmrc` — pin the Node 20 family for local development.
+- `package.json` — add `test`, `test:watch`, and `test:coverage` scripts plus root dev dependencies for `vitest` and `@vitest/coverage-v8`.
+- `pnpm-lock.yaml` — update through `pnpm install` for the new dev dependencies.
+- `vitest.config.ts` — configure Vitest to discover `packages/*/src/**/*.test.ts` and run in the Node environment.
+- `packages/core/src/sample.test.ts` — add a single trivial passing test to verify the configured include pattern.
 
 ## Public API surface
-None. This issue creates repository scaffolding only and must not add exports, package entry points, source files, or public types.
+None. This issue must not add exports, package entry points, public types, auth logic, or package manifests.
 
 ## Test plan
-- Unit: N/A for pure workspace scaffolding; no runtime logic is introduced.
-- Integration: Run `pnpm install` from the repo root and verify it completes cleanly with the empty workspace.
-- Security: N/A; no auth, token, secret, or request-handling code is introduced.
-- Tooling sanity: If `tsc` is not added as a dependency in this issue, do not run `pnpm typecheck`; that belongs to the package/tooling issues. If a root script is added, verify it does not fail solely because later package skeletons are absent.
+- Unit: Run `pnpm test` and verify the sample test passes through the root Vitest config.
+- Integration: N/A; this issue only establishes the test runner pipeline and does not exercise cross-component behavior.
+- Security: N/A; no auth, token, secret, request, or comparison logic is introduced.
+- Tooling: Run `pnpm test:coverage` and verify it produces a coverage summary. Optionally smoke-check `pnpm test:watch -- --run` if a non-interactive equivalent is needed for local verification, but do not require an interactive watch session for CI.
 
 ## Risks / open questions
-- Should `.nvmrc` use an exact current Node 20 patch version or the broader `20` selector? I plan to use `20` to satisfy "pins Node 20.x" without forcing patch churn.
-- Should root scripts be omitted until biome, vitest, and packages exist? I plan to keep scripts minimal or absent so this issue does not stub later tooling work.
+- `packages/core` does not exist yet because issue #4 owns the core package skeleton. The proposed implementation creates only `packages/core/src/sample.test.ts` so #3 remains independent, but confirm if the human would rather place the sample under a temporary dedicated test package or wait until #4 lands.
+- Coverage thresholds are explicitly out of scope, so the coverage script should emit a summary only and avoid enforcing minimums.
 
 ## Out of scope (reaffirmed from issue)
-- Per-package `package.json` files.
-- Package directories and source code.
-- biome, vitest, or GitHub Actions configuration.
-- Any implementation of public API types or auth behavior.
+- Coverage thresholds.
+- Test fixtures for the authorization server.
+- CI workflow changes.
+- Core package skeleton, package manifests, exports maps, public types, or runtime implementation.
