@@ -116,6 +116,51 @@ export interface AuditEvent {
   detail: Record<string, unknown>
 }
 
+/**
+ * Authorization server configuration. The static shape used directly in
+ * single-tenant deployments and returned from the function-form resolver
+ * for multi-tenant deployments (spec v0.2 §5.1, §7).
+ */
+export interface AuthorizationServerConfig {
+  issuer: string
+  jwksUri: string
+  /** Optional; used for RFC 7662 introspection of opaque AS tokens. */
+  introspectionEndpoint?: string
+  /** ms; default 3_600_000 (1h). */
+  jwksCacheTtlMs?: number
+}
+
+/**
+ * Inputs the function-form `authorizationServer` resolver may inspect to pick
+ * the right authorization server for an incoming request.
+ *
+ * Spec v0.2 §5.1: exposes the incoming `IncomingMessage` (host, headers, URL)
+ * — never the request body — plus a derived `tenantId: string | null` parsed
+ * from the host. The default parser splits the first label off the host
+ * (`acme.example.com` → `acme`). Resolvers are free to ignore `tenantId` and
+ * inspect headers directly.
+ */
+export interface AuthorizationServerSelector {
+  /** The incoming Node HTTP request. Read-only by convention. */
+  readonly incoming: IncomingMessage
+  /**
+   * Tenant identifier derived from the request host, or `null` when the host
+   * is missing or has no parseable subdomain. The framework derives this once
+   * before invoking the resolver; resolvers may override or ignore it.
+   */
+  readonly tenantId: string | null
+}
+
+/**
+ * Function-form authorization server resolver. Invoked at most once per
+ * request (memoized) before any other pipeline step. A throw from the
+ * resolver maps to HTTP 503 with `WWW-Authenticate: error="server_error"` —
+ * not 401, because the token is not the problem.
+ */
+export type AuthorizationServerResolver = (
+  selector: AuthorizationServerSelector,
+) => Promise<AuthorizationServerConfig>
+
 export interface AuthKitConfig {
   /** RFC 8707 audience for tokens accepted by this server. */
   resourceIndicator: string
@@ -125,15 +170,14 @@ export interface AuthKitConfig {
      * Authorization server config for OAuth token validation.
      * Optional when using bypass mode or stdio auto-enable (spec §11.2):
      * if absent and transport is stdio, bypass activates automatically.
+     *
+     * Either a static object or, for multi-tenant deployments (spec v0.2
+     * §5.1, §7), a function that resolves the AS per request from the
+     * incoming `IncomingMessage` and a host-derived `tenantId`. The function
+     * is invoked at most once per request (memoized) and a throw maps to
+     * HTTP 503.
      */
-    authorizationServer?: {
-      issuer: string
-      jwksUri: string
-      /** Optional; used for RFC 7662 introspection of opaque AS tokens. */
-      introspectionEndpoint?: string
-      /** ms; default 3_600_000 (1h). */
-      jwksCacheTtlMs?: number
-    }
+    authorizationServer?: AuthorizationServerConfig | AuthorizationServerResolver
     tokenStore: TokenStore
     pat: {
       enabled: boolean

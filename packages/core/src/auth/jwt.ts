@@ -61,6 +61,24 @@ export function createJwtValidator(opts: JwtValidatorOptions): JwtValidator {
   const cacheMaxAge = opts.jwksCacheTtlMs ?? DEFAULT_JWKS_CACHE_TTL_MS
 
   const jwks = createRemoteJWKSet(new URL(jwksUri), { cacheMaxAge })
+  return buildJwtValidator({ issuer, audience, jwks })
+}
+
+type RemoteJwks = ReturnType<typeof createRemoteJWKSet>
+
+interface JwtValidatorBuildOptions {
+  issuer: string
+  audience: string
+  jwks: RemoteJwks
+}
+
+/**
+ * Internal builder that accepts a pre-constructed JWKS so multi-tenant
+ * deployments (spec v0.2 §5.1, §7) can share a per-issuer JWKS cache across
+ * validators bound to different audiences.
+ */
+function buildJwtValidator(opts: JwtValidatorBuildOptions): JwtValidator {
+  const { issuer, audience, jwks } = opts
 
   async function validate(token: string): Promise<JwtValidationResult> {
     if (typeof token !== "string" || token.length === 0) {
@@ -112,6 +130,56 @@ export function createJwtValidator(opts: JwtValidatorOptions): JwtValidator {
   }
 
   return { validate }
+}
+
+// ---------------------------------------------------------------------------
+// JWKS registry — issuer-keyed cache for multi-tenant deployments (spec v0.2 §7)
+// ---------------------------------------------------------------------------
+
+interface JwksRegistryEntry {
+  readonly jwks: RemoteJwks
+  readonly jwksUri: string
+}
+
+/**
+ * Issuer-keyed JWKS cache. Multi-tenant deployments (spec v0.2 §5.1, §7) need
+ * a single JWKS per resolved issuer string so two tenants pointing at two ASs
+ * do not collide. Single-tenant deployments use the registry trivially.
+ *
+ * The registry stores the entry by issuer; if a consumer later resolves the
+ * same issuer to a different `jwksUri`, the first one wins (changing JWKS
+ * URIs at runtime is out of scope for v0.2 and would invite cache-poisoning
+ * footguns).
+ */
+export interface JwksRegistry {
+  /**
+   * Get or build a validator for the given AS + audience pair.
+   * The JWKS is cached per `issuer` across invocations.
+   */
+  validator(opts: JwtValidatorOptions): JwtValidator
+  /** Number of distinct issuers cached. Exposed for tests. */
+  size(): number
+}
+
+export function createJwksRegistry(): JwksRegistry {
+  const entries = new Map<string, JwksRegistryEntry>()
+
+  function validator(opts: JwtValidatorOptions): JwtValidator {
+    const { issuer, audience, jwksUri } = opts
+    const cacheMaxAge = opts.jwksCacheTtlMs ?? DEFAULT_JWKS_CACHE_TTL_MS
+    let entry = entries.get(issuer)
+    if (entry === undefined) {
+      const jwks = createRemoteJWKSet(new URL(jwksUri), { cacheMaxAge })
+      entry = { jwks, jwksUri }
+      entries.set(issuer, entry)
+    }
+    return buildJwtValidator({ issuer, audience, jwks: entry.jwks })
+  }
+
+  return {
+    validator,
+    size: () => entries.size,
+  }
 }
 
 function audienceMatches(aud: unknown, expected: string): boolean {

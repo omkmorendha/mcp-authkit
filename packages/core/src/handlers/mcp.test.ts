@@ -65,7 +65,10 @@ describe("createMcpHandler", () => {
       if (calls === 1) throw new Error("transient")
     })
     const mcp = { connect } as unknown as McpServer
-    const runPipeline = async (): Promise<PipelineResult> => ({ ok: true, auth: okAuth })
+    const runPipeline = async (
+      _req: IncomingMessage,
+      _bearer: string | null,
+    ): Promise<PipelineResult> => ({ ok: true, auth: okAuth })
     const handler = createMcpHandler({
       mcp,
       resourceIndicator: "https://api.example.test/",
@@ -94,7 +97,7 @@ describe("createMcpHandler", () => {
       mcp,
       resourceIndicator: "https://api.example.test/",
       host: { allowedHosts: [] },
-      runPipeline: async () => {
+      runPipeline: async (_req: IncomingMessage, _bearer: string | null) => {
         throw new Error("pipeline boom")
       },
       authContextStorage: new AsyncLocalStorage<AuthContext>(),
