@@ -34,6 +34,10 @@
       "types": "./dist/stores/memory.d.ts",
       "import": "./dist/stores/memory.js"
     },
+    "./stores/redis": {
+      "types": "./dist/stores/redis.d.ts",
+      "import": "./dist/stores/redis.js"
+    },
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
@@ -57,6 +61,7 @@
     "jose": "^6.2.3",
     "mcp-authkit-adapter-express": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*",
+    "mcp-authkit-store-redis": "workspace:*",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },
