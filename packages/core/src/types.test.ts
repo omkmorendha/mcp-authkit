@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { it } from "vitest"
 import { z } from "zod"
-import type { AuthContext, AuthKitConfig, createAuthKit, Handlers } from "./index.js"
+import type { AuthContext, AuthKit, AuthKitConfig, createAuthKit, Handlers } from "./index.js"
 
 type Assert<T extends true> = T
 type IsExact<T, U> =
@@ -133,7 +133,7 @@ const options = {
 } satisfies import("./index.js").RegisterToolOptions<{ name: z.ZodString }>
 
 type FactorySignature = typeof createAuthKit
-type ExpectedFactorySignature = (config: AuthKitConfig) => import("./index.js").AuthKit
+type ExpectedFactorySignature = (config: AuthKitConfig) => AuthKit
 
 const factorySignatureMatches: Assert<IsExact<FactorySignature, ExpectedFactorySignature>> = true
 
