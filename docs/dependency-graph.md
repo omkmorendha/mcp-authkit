@@ -138,3 +138,77 @@ graph TD
 ### Recommended starting issue (Stage 4)
 
 **#41 — security test matrix.** Can run in parallel with #42 once Stage 3 is done.
+
+## v0.2
+
+### Stage 1 (v0.2 storage)
+
+```mermaid
+graph TD
+    PG["Postgres token store"]
+    SQ["SQLite token store"]
+    RE["Redis cache decorator"]
+```
+
+All three are independent. Start with Postgres — it exercises the
+migration pattern SQLite reuses, and Redis is a decorator whose
+integration tests use the memory store.
+
+### Stage 2 (v0.2 OAuth flows)
+
+```mermaid
+graph TD
+    DCR["RFC 7591 Dynamic Client Registration"]
+    JBA["RFC 7523 JWT Bearer Assertion"]
+    CC["RFC 6749 §4.4 Client Credentials"]
+    TX["RFC 8693 Token Exchange"]
+```
+
+All four independent. Token Exchange gates the Stage 3 upstream helper,
+so prioritize it on the critical path.
+
+### Stage 3 (v0.2 multi-tenant + upstream)
+
+```mermaid
+graph TD
+    MT["Multi-tenant authorizationServer (fn form)"]
+    UP["Upstream credential helper"]
+    TX2["Stage 2: Token Exchange"] --> UP
+```
+
+### Stage 4 (v0.2 adapters, CLI, config)
+
+```mermaid
+graph TD
+    HN["Hono adapter"]
+    CF["Config file format"]
+    CL["CLI (mcp-authkit binary)"]
+    CF --> CL
+```
+
+### Stage 5 (v0.2 production stdio)
+
+Single issue, independent of every other v0.2 stage.
+
+### Stage 6 (v0.2 examples + docs)
+
+Lands after Stages 1–5 are mostly done.
+
+```mermaid
+graph TD
+    EXP_PG["Postgres example"]
+    EXP_FS["Filesystem (SQLite) example"]
+    EXP_ST["Stdio example"]
+    DOCS["Production deployment doc + cookbook"]
+```
+
+### Stage 7 (v0.2 hardening + release)
+
+```mermaid
+graph TD
+    SEC["Security test matrix"]
+    E2E["Python E2E refresh"]
+    REL["Release prep"]
+    SEC --> REL
+    E2E --> REL
+```
