@@ -1,31 +1,35 @@
-# Plan: docs: README with quickstart pointer (#11)
+# Plan: chore: pnpm workspace + tsconfig base (#1)
 
 ## Spec anchors
-- `docs/spec/v0.1.md#0-v01-scope`
-- `docs/spec/v0.1.md#1-mission`
+- docs/spec/v0.1.md#2-hard-constraints-locked-decisions
+- docs/spec/v0.1.md#16-project-structure-v01
 
 ## Approach
-Update the existing top-level `README.md` so it becomes a terse front door for v0.1 without expanding project scope. Keep the elevator pitch aligned with spec §1, make the development status explicit, and mirror the in-scope/deferred lists from spec §0 at a summary level. The README should point readers to `docs/spec/v0.1.md` as the source of truth and link to `docs/quickstart.md` as the eventual quickstart location, even if that document does not exist yet in Stage 0. This is documentation-only work, so the implementation should avoid source, config, or generated-file changes.
+Bootstrap only the repository-level workspace and TypeScript configuration needed by later Stage 0 issues. Keep the root package private and ESM-oriented, with Node 20 declared in both package metadata and a version pin file so contributors and CI resolve the same runtime family. Add a shared `tsconfig.base.json` that encodes the strict TypeScript defaults from CLAUDE.md and the issue, then keep the root `tsconfig.json` minimal so package skeleton issues can add project references when those packages exist. Do not create package directories, package manifests, tooling configs, CI, tests, or source code in this issue.
 
 ## Files to create / change
-- `README.md` — revise the top-level project introduction, add status and CI badge placeholders, summarize v0.1 scope and deferred work, and add links to the spec and eventual quickstart.
+- `pnpm-workspace.yaml` — declare `packages/*` and `examples/*` workspace globs.
+- `package.json` — private monorepo manifest named `mcp-authkit-monorepo`, ESM-only, Node >=20 engine, and minimal workspace scripts only if they can run without package/tooling setup.
+- `tsconfig.base.json` — shared strict NodeNext/ES2022 TypeScript compiler options with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
+- `tsconfig.json` — root config extending the base, with no source includes and no package references until package skeletons exist.
+- `.gitignore` — ignore `node_modules`, `dist`, logs, `.DS_Store`, and `coverage`.
+- `.nvmrc` — pin the Node 20 family for local development.
 
 ## Public API surface
-No public API changes. No new exports.
+None. This issue creates repository scaffolding only and must not add exports, package entry points, source files, or public types.
 
 ## Test plan
-- Unit: N/A — documentation-only change.
-- Integration: N/A — documentation-only change.
-- Security: N/A — documentation-only change.
-- Manual: inspect rendered Markdown for valid relative links, no emojis, and exact alignment with issue acceptance criteria.
-- CI: run the standard checks if the repository has them available at implementation time; otherwise note that the change is documentation-only and no package tooling exists yet.
+- Unit: N/A for pure workspace scaffolding; no runtime logic is introduced.
+- Integration: Run `pnpm install` from the repo root and verify it completes cleanly with the empty workspace.
+- Security: N/A; no auth, token, secret, or request-handling code is introduced.
+- Tooling sanity: If `tsc` is not added as a dependency in this issue, do not run `pnpm typecheck`; that belongs to the package/tooling issues. If a root script is added, verify it does not fail solely because later package skeletons are absent.
 
 ## Risks / open questions
-- Confirm whether the CI badge placeholder should be plain text, a commented placeholder, or a Markdown badge link once the CI workflow path/name is known from issue #10.
-- Confirm whether linking to the not-yet-created `docs/quickstart.md` is acceptable as a broken relative link until Stage 4, as the issue says the placeholder is fine.
+- Should `.nvmrc` use an exact current Node 20 patch version or the broader `20` selector? I plan to use `20` to satisfy "pins Node 20.x" without forcing patch churn.
+- Should root scripts be omitted until biome, vitest, and packages exist? I plan to keep scripts minimal or absent so this issue does not stub later tooling work.
 
 ## Out of scope (reaffirmed from issue)
-- Creating `docs/quickstart.md`.
-- Adding a contributing guide.
-- Adding API reference documentation.
-- Implementing or stubbing any v0.2+ deferred feature.
+- Per-package `package.json` files.
+- Package directories and source code.
+- biome, vitest, or GitHub Actions configuration.
+- Any implementation of public API types or auth behavior.

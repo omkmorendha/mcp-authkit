@@ -1,0 +1,9 @@
+{
+  "name": "mcp-authkit-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
