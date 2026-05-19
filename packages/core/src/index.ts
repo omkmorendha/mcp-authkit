@@ -1,4 +1,12 @@
 export {
+  createIntrospectionValidator,
+  type FetchLike,
+  type IntrospectionFailureReason,
+  type IntrospectionValidationResult,
+  type IntrospectionValidator,
+  type IntrospectionValidatorOptions,
+} from "./auth/introspection.js"
+export {
   createJwtValidator,
   type JwtValidationFailureReason,
   type JwtValidationResult,
