@@ -121,7 +121,12 @@ export interface AuthKitConfig {
   resourceIndicator: string
 
   auth: {
-    authorizationServer: {
+    /**
+     * Authorization server config for OAuth token validation.
+     * Optional when using bypass mode or stdio auto-enable (spec §11.2):
+     * if absent and transport is stdio, bypass activates automatically.
+     */
+    authorizationServer?: {
       issuer: string
       jwksUri: string
       /** Optional; used for RFC 7662 introspection of opaque AS tokens. */
