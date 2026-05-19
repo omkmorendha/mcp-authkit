@@ -1,4 +1,13 @@
 export {
+  type MintedPat,
+  mintPat,
+  type ParsedPat,
+  PatFormatError,
+  type PatFormatErrorCode,
+  parsePat,
+  verifyPat,
+} from "./pats/format.js"
+export {
   type AuditEvent,
   type AuthContext,
   type AuthKit,
