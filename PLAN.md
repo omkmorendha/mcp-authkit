@@ -1,35 +1,64 @@
-# Plan: chore: pnpm workspace + tsconfig base (#1)
+# Plan: chore: packages/core skeleton (package.json, exports map) (#4)
 
 ## Spec anchors
-- docs/spec/v0.1.md#2-hard-constraints-locked-decisions
+- docs/spec/v0.1.md#63-import-paths-v01
 - docs/spec/v0.1.md#16-project-structure-v01
 
 ## Approach
-Bootstrap only the repository-level workspace and TypeScript configuration needed by later Stage 0 issues. Keep the root package private and ESM-oriented, with Node 20 declared in both package metadata and a version pin file so contributors and CI resolve the same runtime family. Add a shared `tsconfig.base.json` that encodes the strict TypeScript defaults from CLAUDE.md and the issue, then keep the root `tsconfig.json` minimal so package skeleton issues can add project references when those packages exist. Do not create package directories, package manifests, tooling configs, CI, tests, or source code in this issue.
+Create the smallest compiling `packages/core` package that satisfies the v0.1 package layout without adding any auth behavior or public type definitions. The core package should publish only the root `mcp-authkit` entry for now; the memory store and Express adapter import paths from spec §6.3 are intentionally absent because they belong to later packages. Use the existing root TypeScript base config from issue #1, add package-local build metadata, and keep `src/index.ts` as an empty module placeholder so `pnpm --filter mcp-authkit build` emits `dist/index.js` and `dist/index.d.ts`. Avoid stubbing future logic in the domain subdirectories; use empty directories tracked with `.gitkeep` only where needed.
 
 ## Files to create / change
-- `pnpm-workspace.yaml` — declare `packages/*` and `examples/*` workspace globs.
-- `package.json` — private monorepo manifest named `mcp-authkit-monorepo`, ESM-only, Node >=20 engine, and minimal workspace scripts only if they can run without package/tooling setup.
-- `tsconfig.base.json` — shared strict NodeNext/ES2022 TypeScript compiler options with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
-- `tsconfig.json` — root config extending the base, with no source includes and no package references until package skeletons exist.
-- `.gitignore` — ignore `node_modules`, `dist`, logs, `.DS_Store`, and `coverage`.
-- `.nvmrc` — pin the Node 20 family for local development.
+- `packages/core/package.json` — package manifest named `mcp-authkit` at `0.1.0`, ESM-only, `sideEffects: false`, a build script, and agreeing `main`, `types`, and root-only `exports`.
+- `packages/core/tsconfig.json` — extends `../../tsconfig.base.json`, compiles `src/` to `dist/`, and emits declarations for the placeholder root entry.
+- `packages/core/src/index.ts` — empty module placeholder using `export {}`.
+- `packages/core/src/types.ts` — empty module placeholder only if required to satisfy the spec §16 file layout; public types remain out of scope for issue #8.
+- `packages/core/src/auth/.gitkeep` — track the auth source directory without logic.
+- `packages/core/src/pats/.gitkeep` — track the PAT source directory without logic.
+- `packages/core/src/scopes/.gitkeep` — track the scope source directory without logic.
+- `packages/core/src/handlers/.gitkeep` — track the handler source directory without logic.
+- `packages/core/src/bypass/.gitkeep` — track the bypass source directory without logic.
+- `packages/core/src/audit/.gitkeep` — track the audit source directory without logic.
+- `package.json` and `pnpm-lock.yaml` — add only the minimal TypeScript build dependency if it is still absent when implementing, so the required filtered build can run locally and in CI.
 
 ## Public API surface
-None. This issue creates repository scaffolding only and must not add exports, package entry points, source files, or public types.
+New package entry point:
+
+```typescript
+// mcp-authkit
+export {}
+```
+
+Package metadata should expose only:
+
+```json
+{
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
+}
+```
+
+Do not export `mcp-authkit/stores/memory` or `mcp-authkit/adapters/express` from core; those import paths are implemented by separate workspace packages in later issues.
 
 ## Test plan
-- Unit: N/A for pure workspace scaffolding; no runtime logic is introduced.
-- Integration: Run `pnpm install` from the repo root and verify it completes cleanly with the empty workspace.
-- Security: N/A; no auth, token, secret, or request-handling code is introduced.
-- Tooling sanity: If `tsc` is not added as a dependency in this issue, do not run `pnpm typecheck`; that belongs to the package/tooling issues. If a root script is added, verify it does not fail solely because later package skeletons are absent.
+- Unit: N/A; this is package skeleton only and introduces no runtime logic.
+- Integration: Run `pnpm --filter mcp-authkit build` and verify it emits `packages/core/dist/index.js` plus declarations from the placeholder source.
+- Security: N/A; no auth, token, secret, request-handling, or comparison logic is introduced.
+- Tooling sanity: Run `pnpm install` if a TypeScript dependency is added, and inspect the package manifest to confirm there is no CommonJS fallback and no adapter/store subpath export.
 
 ## Risks / open questions
-- Should `.nvmrc` use an exact current Node 20 patch version or the broader `20` selector? I plan to use `20` to satisfy "pins Node 20.x" without forcing patch churn.
-- Should root scripts be omitted until biome, vitest, and packages exist? I plan to keep scripts minimal or absent so this issue does not stub later tooling work.
+- The issue says `src/types.ts` must exist but also says public type definitions are out of scope. I plan to create it as an empty module placeholder (`export {}`) only to satisfy the directory layout, leaving all real type definitions to issue #8.
+- Current `origin/main` has no TypeScript dependency or root build tooling. To make `pnpm --filter mcp-authkit build` pass, implementation likely needs to add `typescript` as a minimal dev dependency, preferably at the workspace root unless project conventions change before implementation.
+- The package name `mcp-authkit` at `packages/core` means the later memory store and Express adapter packages must coordinate their own package names or publish-time export strategy; this issue should not solve that beyond keeping core's export map root-only as requested.
 
 ## Out of scope (reaffirmed from issue)
-- Per-package `package.json` files.
-- Package directories and source code.
-- biome, vitest, or GitHub Actions configuration.
-- Any implementation of public API types or auth behavior.
+- Any auth, PAT, scope, handler, bypass, or audit logic.
+- Public type definitions from spec §6.1.
+- Memory store or Express adapter code or exports.
+- Tests beyond verifying the skeleton build.
+- Any v0.2+ deferred feature, placeholder, hook, or TODO.
