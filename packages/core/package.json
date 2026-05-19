@@ -13,6 +13,10 @@
     "./stores/memory": {
       "types": "./dist/stores/memory.d.ts",
       "import": "./dist/stores/memory.js"
+    },
+    "./adapters/express": {
+      "types": "./dist/adapters/express.d.ts",
+      "import": "./dist/adapters/express.js"
     }
   },
   "files": [
@@ -26,6 +30,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "jose": "^6.2.3",
+    "mcp-authkit-adapter-express": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*",
     "pino": "^10.3.1",
     "zod": "^4.4.3"

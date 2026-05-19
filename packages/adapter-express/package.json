@@ -18,10 +18,16 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "mcp-authkit": "workspace:*"
-  },
   "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "express": "^5.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.9.0",
+    "@types/supertest": "^6.0.2",
+    "express": "^5.0.0",
+    "supertest": "^7.0.0"
   }
 }
