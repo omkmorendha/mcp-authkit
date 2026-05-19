@@ -1,3 +1,4 @@
+export { type AuditSink, dispatchAudit } from "./audit/index.js"
 export {
   createIntrospectionValidator,
   type FetchLike,
@@ -32,7 +33,6 @@ export {
   verifyPat,
 } from "./pats/format.js"
 export {
-  type AuditSink,
   type CreatePatRequest,
   type CreatePatResult,
   createPat,

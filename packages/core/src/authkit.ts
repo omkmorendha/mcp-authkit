@@ -14,6 +14,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import pino from "pino"
 import { z } from "zod"
+import { type AuditSink, dispatchAudit } from "./audit/index.js"
 import { createIntrospectionValidator } from "./auth/introspection.js"
 import { createJwtValidator } from "./auth/jwt.js"
 import {
@@ -23,14 +24,7 @@ import {
 } from "./bypass/index.js"
 import { findPatByHash, updatePatLastUsed } from "./pats/lifecycle.js"
 import { satisfies } from "./scopes/satisfies.js"
-import type {
-  AuditEvent,
-  AuthContext,
-  AuthKit,
-  AuthKitConfig,
-  Handlers,
-  RegisterToolOptions,
-} from "./types.js"
+import type { AuthContext, AuthKit, AuthKitConfig, Handlers, RegisterToolOptions } from "./types.js"
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -77,13 +71,6 @@ export function timingSafeStringEqual(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf)
 }
 
-async function emitAudit(
-  onEvent: ((e: AuditEvent) => void | Promise<void>) | undefined,
-  event: AuditEvent,
-): Promise<void> {
-  if (onEvent) await onEvent(event)
-}
-
 // ---------------------------------------------------------------------------
 // Six-step validation pipeline (spec §9)
 // ---------------------------------------------------------------------------
@@ -96,12 +83,13 @@ async function emitAudit(
  *
  * The `onEvent` audit callback receives `oauth.validate`, `oauth.reject`,
  * and `pat.use` events; `scope.allow` / `scope.deny` are fired by the
- * `registerTool` scope gate, not here.
+ * `registerTool` scope gate, not here. The hook is awaited and any thrown
+ * error propagates to the caller per spec §12.
  */
 export async function runPipeline(
   config: AuthKitConfig,
   bearerToken: string | null,
-  onEvent?: (e: AuditEvent) => void | Promise<void>,
+  onEvent?: AuditSink,
 ): Promise<PipelineResult> {
   const now = new Date()
 
@@ -147,7 +135,7 @@ export async function runPipeline(
       }
       // Best-effort, non-blocking — never await (spec §9 step 3).
       void updatePatLastUsed(config.auth.tokenStore, resolved.stored.id, now)
-      await emitAudit(onEvent, {
+      await dispatchAudit(onEvent, {
         type: "pat.use",
         at: now,
         subject: auth.subject,
@@ -158,7 +146,7 @@ export async function runPipeline(
     }
     // PAT-shaped token the store doesn't know about — fail fast; don't try
     // JWT or introspection for PAT-prefixed tokens.
-    await emitAudit(onEvent, {
+    await dispatchAudit(onEvent, {
       type: "oauth.reject",
       at: now,
       subject: null,
@@ -184,7 +172,7 @@ export async function runPipeline(
     })
     const result = await validator.validate(bearerToken)
     if (result.ok) {
-      await emitAudit(onEvent, {
+      await dispatchAudit(onEvent, {
         type: "oauth.validate",
         at: now,
         subject: result.auth.subject,
@@ -193,7 +181,7 @@ export async function runPipeline(
       })
       return { ok: true, auth: result.auth }
     }
-    await emitAudit(onEvent, {
+    await dispatchAudit(onEvent, {
       type: "oauth.reject",
       at: now,
       subject: null,
@@ -215,7 +203,7 @@ export async function runPipeline(
     })
     const result = await validator.validate(bearerToken)
     if (result.ok) {
-      await emitAudit(onEvent, {
+      await dispatchAudit(onEvent, {
         type: "oauth.validate",
         at: now,
         subject: result.auth.subject,
@@ -224,7 +212,7 @@ export async function runPipeline(
       })
       return { ok: true, auth: result.auth }
     }
-    await emitAudit(onEvent, {
+    await dispatchAudit(onEvent, {
       type: "oauth.reject",
       at: now,
       subject: null,
@@ -301,7 +289,7 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
       for (const req of required) {
         const allowed = await satisfies(req, [...auth.scopes], { auth, input }, customMatchers)
         if (!allowed) {
-          await emitAudit(onEvent, {
+          await dispatchAudit(onEvent, {
             type: "scope.deny",
             at: now,
             subject: auth.subject,
@@ -318,7 +306,7 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
 
       // All scopes satisfied — emit allow event(s) and invoke handler (spec §12).
       for (const req of required) {
-        await emitAudit(onEvent, {
+        await dispatchAudit(onEvent, {
           type: "scope.allow",
           at: now,
           subject: auth.subject,

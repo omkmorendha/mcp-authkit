@@ -16,14 +16,9 @@
  */
 import { timingSafeEqual } from "node:crypto"
 import type { Logger } from "pino"
+import { type AuditSink, dispatchAudit } from "../audit/index.js"
 import { intersect, normalize } from "../scopes/index.js"
-import type {
-  AuditEvent,
-  CreatePatInput,
-  StoredPat,
-  StoredPatPublic,
-  TokenStore,
-} from "../types.js"
+import type { CreatePatInput, StoredPat, StoredPatPublic, TokenStore } from "../types.js"
 import { mintPat } from "./format.js"
 
 /** Config subset relevant to lifecycle operations. */
@@ -61,7 +56,11 @@ export interface ResolvedPat {
   readonly effectiveScopes: readonly string[]
 }
 
-export type AuditSink = (event: AuditEvent) => void | Promise<void>
+/**
+ * Re-exported from `../audit/dispatch.ts` for backward compatibility.
+ * New code should import {@link AuditSink} from `@mcp-authkit/core` directly.
+ */
+export type { AuditSink }
 
 export type PatLifecycleErrorCode = "expiry_out_of_range"
 
@@ -90,16 +89,17 @@ function buildDisplay(prefix: string, token: string): string {
   return `${prefix}${random.slice(0, 4)}…${checksum.slice(-4)}`
 }
 
-async function emit(audit: AuditSink | undefined, event: AuditEvent): Promise<void> {
-  if (!audit) return
-  await audit(event)
-}
-
 /**
  * Mint a new PAT. Returns the plaintext token (show once) and the stored row.
  *
  * Throws {@link PatLifecycleError} with code `expiry_out_of_range` if a
  * caller-supplied `expiresInDays` is below 1 or above `maxExpiryDays`.
+ *
+ * If the audit hook throws, the freshly-created store row is rolled back
+ * via {@link TokenStore.revokePat} before the exception propagates — spec
+ * §12 ("throwing from a pat.mint event causes the POST to 500 and the
+ * store row to roll back"). The plaintext token is never returned to the
+ * caller in that case.
  */
 export async function createPat(
   store: TokenStore,
@@ -127,13 +127,28 @@ export async function createPat(
     display: buildDisplay(config.prefix, minted.token),
   }
   const stored = await store.createPat(input)
-  await emit(options.audit, {
-    type: "pat.mint",
-    at: now,
-    subject: stored.userIdentifier,
-    tokenId: stored.id,
-    detail: { name: stored.name, scopes: stored.scopes, expiresAt: stored.expiresAt },
-  })
+  try {
+    await dispatchAudit(options.audit, {
+      type: "pat.mint",
+      at: now,
+      subject: stored.userIdentifier,
+      tokenId: stored.id,
+      detail: { name: stored.name, scopes: stored.scopes, expiresAt: stored.expiresAt },
+    })
+  } catch (err) {
+    // Roll back the just-created row. revokePat is idempotent in the
+    // canonical store implementations; if it fails too, we log and still
+    // surface the original audit error so the caller sees the cause.
+    try {
+      await store.revokePat(stored.id, stored.userIdentifier)
+    } catch (rollbackErr) {
+      options.logger?.warn(
+        { err: rollbackErr, patId: stored.id },
+        "pat.mint audit failed and rollback also failed",
+      )
+    }
+    throw err
+  }
   return { token: minted.token, stored }
 }
 
@@ -192,7 +207,7 @@ export async function revokePat(
   options: LifecycleOptions = {},
 ): Promise<void> {
   await store.revokePat(id, userIdentifier)
-  await emit(options.audit, {
+  await dispatchAudit(options.audit, {
     type: "pat.revoke",
     at: options.now?.() ?? new Date(),
     subject: userIdentifier,
@@ -254,7 +269,7 @@ export async function rotatePat(
     handle.unref?.()
   }
 
-  await emit(options.audit, {
+  await dispatchAudit(options.audit, {
     type: "pat.rotate",
     at: now,
     subject: userIdentifier,
