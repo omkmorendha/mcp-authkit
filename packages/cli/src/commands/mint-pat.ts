@@ -32,6 +32,31 @@ export interface MintPatOptions {
 const DEFAULT_EXPIRY_DAYS = 90
 const MAX_EXPIRY_DAYS = 365 * 5
 
+/**
+ * Reject identifiers that contain path-traversal sequences, path separators,
+ * or control characters (spec v0.2 §12 / §13). `--user` and `--name` are
+ * non-secret labels, but a downstream consumer may use the stored
+ * `userIdentifier` to build a file path, log line, or shell-escaped string.
+ * Refuse anything that looks like a filesystem path before any I/O.
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting these characters is the explicit intent
+const CONTROL_CHAR_RE = /[\u0000-\u001f\u007f]/
+
+function assertSafeIdentifier(flag: string, value: string): void {
+  if (CONTROL_CHAR_RE.test(value)) {
+    throw new CliError(ExitCode.userError, `${flag} must not contain control characters`)
+  }
+  if (value.includes("/") || value.includes("\\")) {
+    throw new CliError(ExitCode.userError, `${flag} must not contain path separators`)
+  }
+  if (value.includes("..")) {
+    throw new CliError(
+      ExitCode.userError,
+      `${flag} must not contain path-traversal sequences ("..")`,
+    )
+  }
+}
+
 export async function mintPatCommand(options: MintPatOptions): Promise<void> {
   const user = options.user.trim()
   const name = options.name.trim()
@@ -43,6 +68,8 @@ export async function mintPatCommand(options: MintPatOptions): Promise<void> {
   if (name.length === 0) {
     throw new CliError(ExitCode.userError, "--name must be a non-empty string")
   }
+  assertSafeIdentifier("--user", user)
+  assertSafeIdentifier("--name", name)
   if (scopes.length === 0) {
     throw new CliError(ExitCode.userError, "--scopes must list at least one non-empty scope")
   }
