@@ -67,20 +67,26 @@ class SignedStdioMcpTransport implements Transport {
 
   deliver(payload: Buffer): Promise<Buffer | null> {
     return new Promise((resolve) => {
-      let parsed: JSONRPCMessage
+      let parsed: unknown
       try {
-        parsed = JSON.parse(payload.toString("utf8")) as JSONRPCMessage
+        parsed = JSON.parse(payload.toString("utf8"))
       } catch (err) {
         this.onerror?.(err instanceof Error ? err : new Error(String(err)))
         resolve(null)
         return
       }
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        this.onerror?.(new Error("invalid JSON-RPC payload: expected an object"))
+        resolve(null)
+        return
+      }
+      const message = parsed as JSONRPCMessage
       // Notifications carry no `id`; the signed framing has no return
       // slot for them, so drop the response after delivery.
-      const isNotification = !("id" in parsed) || parsed.id === undefined
+      const isNotification = !("id" in message) || message.id === undefined
       if (isNotification) {
         try {
-          this.onmessage?.(parsed, this.extra)
+          this.onmessage?.(message, this.extra)
         } catch (err) {
           this.onerror?.(err instanceof Error ? err : new Error(String(err)))
         }
@@ -89,7 +95,7 @@ class SignedStdioMcpTransport implements Transport {
       }
       this.pending = resolve
       try {
-        this.onmessage?.(parsed, this.extra)
+        this.onmessage?.(message, this.extra)
       } catch (err) {
         this.pending = null
         this.onerror?.(err instanceof Error ? err : new Error(String(err)))
