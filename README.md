@@ -1,10 +1,33 @@
 # mcp-authkit
 
+[![npm version](https://img.shields.io/npm/v/mcp-authkit.svg?logo=npm&label=mcp-authkit)](https://www.npmjs.com/package/mcp-authkit)
+[![npm downloads](https://img.shields.io/npm/dm/mcp-authkit.svg)](https://www.npmjs.com/package/mcp-authkit)
+[![Provenance](https://img.shields.io/badge/provenance-SLSA%20v1-blue)](https://registry.npmjs.org/-/npm/v1/attestations/mcp-authkit@latest)
 [![CI](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml/badge.svg)](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml)
+[![Release](https://github.com/omkmorendha/mcp-authkit/actions/workflows/release.yml/badge.svg)](https://github.com/omkmorendha/mcp-authkit/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/npm/l/mcp-authkit.svg)](LICENSE)
 
-> **Status: v0.2.0 shipped (2026-05-20).** The active spec is
+> **Status: v0.2.1 shipped (2026-05-20).** The active spec is
 > [`docs/spec/v0.2.md`](docs/spec/v0.2.md); the v0.1 baseline lives at
 > [`docs/spec/v0.1.md`](docs/spec/v0.1.md).
+
+### Published packages
+
+All nine packages release together at the same version. The current
+versions are pinned to whatever `mcp-authkit` is at on npm (the badge
+above is canonical).
+
+| Package | npm |
+|---|---|
+| [`mcp-authkit`](https://www.npmjs.com/package/mcp-authkit) — core framework | ![](https://img.shields.io/npm/v/mcp-authkit.svg?label=) |
+| [`mcp-authkit-adapter-express`](https://www.npmjs.com/package/mcp-authkit-adapter-express) | ![](https://img.shields.io/npm/v/mcp-authkit-adapter-express.svg?label=) |
+| [`mcp-authkit-adapter-hono`](https://www.npmjs.com/package/mcp-authkit-adapter-hono) | ![](https://img.shields.io/npm/v/mcp-authkit-adapter-hono.svg?label=) |
+| [`mcp-authkit-store-memory`](https://www.npmjs.com/package/mcp-authkit-store-memory) | ![](https://img.shields.io/npm/v/mcp-authkit-store-memory.svg?label=) |
+| [`mcp-authkit-store-postgres`](https://www.npmjs.com/package/mcp-authkit-store-postgres) | ![](https://img.shields.io/npm/v/mcp-authkit-store-postgres.svg?label=) |
+| [`mcp-authkit-store-sqlite`](https://www.npmjs.com/package/mcp-authkit-store-sqlite) | ![](https://img.shields.io/npm/v/mcp-authkit-store-sqlite.svg?label=) |
+| [`mcp-authkit-store-redis`](https://www.npmjs.com/package/mcp-authkit-store-redis) | ![](https://img.shields.io/npm/v/mcp-authkit-store-redis.svg?label=) |
+| [`mcp-authkit-config`](https://www.npmjs.com/package/mcp-authkit-config) | ![](https://img.shields.io/npm/v/mcp-authkit-config.svg?label=) |
+| [`mcp-authkit-cli`](https://www.npmjs.com/package/mcp-authkit-cli) | ![](https://img.shields.io/npm/v/mcp-authkit-cli.svg?label=) |
 
 mcp-authkit is a framework-agnostic auth toolkit for Model Context Protocol servers: it helps server authors validate spec-compliant OAuth 2.1 tokens, issue Personal Access Tokens for scripts and CI, and enforce per-tool authorization without wiring auth logic into every handler.
 
