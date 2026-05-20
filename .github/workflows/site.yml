@@ -1,0 +1,74 @@
+name: Site
+
+# Builds the VitePress docs site under docs/ and deploys it to GitHub
+# Pages. Fires on:
+#   - push to main (production deploys)
+#   - manual workflow_dispatch (debug / rebuild without a commit)
+#
+# Pull requests build but DO NOT deploy — the site only ever serves what's
+# on main. PR authors can preview locally with `pnpm docs:dev`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/site.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch: {}
+
+# Allow one concurrent deploy; if a newer push lands while a deploy is
+# in progress, cancel the old one. We never want a stale build to win.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.30.0"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build site
+        run: pnpm docs:build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # Only deploy from main, never from PRs.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
