@@ -122,7 +122,123 @@ The repo ships skills under `.claude/skills/` that codify the workflow:
 
 Invoke skills via the Skill tool. Do not improvise the workflow.
 
-## 10. When in Doubt
+## 10. Releases
+
+The npm release pipeline is fully automated via OIDC. Do not run
+`pnpm publish` manually from a workstation — there is no `NPM_TOKEN`
+secret and the published packages would lack the provenance
+attestation that ties them to a specific commit.
+
+### How a release happens
+
+1. On `main` with a clean tree, bump every public workspace package to
+   the new version. All nine bump together — this monorepo does **not**
+   support independent versioning. Sanity check:
+
+   ```bash
+   grep -c '"version": "<new>"' packages/*/package.json   # must equal 9
+   ```
+
+2. Add a `## [<new>] — YYYY-MM-DD` entry to `CHANGELOG.md` above the
+   previous one. Cover `### Added` / `### Changed` / `### Fixed` /
+   `### Security` as applicable. Spec links are required when a section
+   was touched (§1).
+
+3. Run the local CI gate (§3): `pnpm install && pnpm build && pnpm
+   typecheck && pnpm test`. All four must be green; do not push a
+   release otherwise.
+
+4. Commit as `chore(release): v<new>`. Push to `main`.
+
+5. Tag and push:
+
+   ```bash
+   git tag -a v<new> -m "v<new>"
+   git push origin v<new>
+   ```
+
+   The `v*` tag fires `.github/workflows/release.yml`, which runs the
+   gate again in CI, then `pnpm -r publish --access public --provenance
+   --no-git-checks` for every public package.
+
+6. Verify after the workflow goes green:
+
+   ```bash
+   for p in mcp-authkit mcp-authkit-adapter-express mcp-authkit-adapter-hono \
+            mcp-authkit-store-memory mcp-authkit-store-postgres \
+            mcp-authkit-store-sqlite mcp-authkit-store-redis \
+            mcp-authkit-config mcp-authkit-cli; do
+     printf '%-32s %s\n' "$p" "$(npm view $p version)"
+   done
+   ```
+
+   Each should show `<new>`. Spot-check provenance on one:
+
+   ```bash
+   npm view mcp-authkit@<new> --json | python3 -c "import json,sys; print(json.load(sys.stdin)['dist']['attestations'])"
+   ```
+
+   That should print a `slsa.dev/provenance/v1` URL.
+
+7. Create the GitHub Release pointing at the tag:
+
+   ```bash
+   awk '/^## \[<new>\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md > /tmp/notes.md
+   gh release create v<new> --title "v<new> — <one-line>" --notes-file /tmp/notes.md --verify-tag
+   ```
+
+### When a release fails mid-flight
+
+The tag has fired but `pnpm publish` errored before any tarball was
+PUT. Symptoms include npm returning **HTTP 404** on the first publish
+attempt — npm returns 404 (not 401/403) when OIDC silently fails,
+which is misleading. **Before retrying:** check that no package
+actually published with the new version (`npm view <name> versions`).
+
+If nothing published, the tag may be force-moved safely:
+
+```bash
+# Fix the workflow, push to main, then:
+git tag -d v<new>
+git push origin :refs/tags/v<new>
+git tag -a v<new> -m "v<new>"
+git push origin v<new>           # re-fires the workflow
+```
+
+If **any** package did publish, do not move the tag. Cut a new patch
+version instead.
+
+### Trusted Publishers, npm CLI, and Node
+
+Each package on npmjs.com is bound to this repo + the `release.yml`
+workflow under "Trusted Publishers." Three constraints follow:
+
+- **The workflow filename must stay `release.yml`.** Renaming breaks
+  every Trusted Publisher binding and the publish step will return 404.
+- **Node version must include npm ≥ 11.5.1.** Trusted Publishers / OIDC
+  is gated on this; pnpm shells out to npm for the OIDC handshake. Node
+  22 LTS ships npm 10.x and will silently fail. Pin the runner to
+  Node 24+ in `release.yml`. Do not "upgrade in place" with `npm
+  install -g npm@latest` — it crashes with `MODULE_NOT_FOUND` mid-
+  rebuild.
+- **A new package needs its own Trusted Publisher binding** (one-time
+  manual UI step on npmjs.com → package → Settings → Trusted
+  Publishers). Until that's done, the first publish of that name will
+  fail with 404.
+
+### What the release pipeline does NOT do
+
+- Independent versioning (changesets / lerna). All packages bump
+  together. If you need independent versioning, that's a real
+  redesign — file an issue first, don't improvise.
+- Automatic CHANGELOG generation. The CHANGELOG is hand-written; this
+  is intentional because the v0.2 spec demands spec-section anchors per
+  entry that no commit-parser can produce.
+- Pre-release tags (alpha, beta, rc). If we add them, the workflow
+  needs a tag-filter (`v[0-9]+.[0-9]+.[0-9]+-*`) and the `--tag`
+  argument on `pnpm publish` to keep the `latest` dist-tag stable.
+
+## 11. When in Doubt
 
 Prioritize a clean public API and explicit security defaults over breadth
 of features. A small framework that does auth correctly beats a big
