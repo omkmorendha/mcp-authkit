@@ -351,8 +351,7 @@ describe("requestTokenWithAssertion", () => {
     it("infers alg from JWK kty/crv when alg is absent (RSA → RS256)", async () => {
       const { privateKey } = await generateKeyPair("RS256", { extractable: true })
       const jwk = await exportJWK(privateKey)
-      // intentionally omit jwk.alg
-      jwk.alg = undefined as unknown as string
+      delete jwk.alg
 
       const captured: Captured[] = []
       const fetch = fetchStub(
