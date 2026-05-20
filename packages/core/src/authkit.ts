@@ -528,15 +528,29 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   // front so the LRU-fallback startup warning fires when the AS is present
   // but the store omits the optional cache methods.
   //
-  // The function-form (multi-tenant) AS is intentionally excluded: upstreamFor
-  // assumes a single static issuer at construction time. Tenants resolved
-  // per-request would need a per-tenant token-exchange client and per-tenant
-  // cache keys, which is a separate feature (out of scope for v0.2 §5.6).
+  // Static-object AS: a fixed issuer is known at construction time.
+  // Function-form AS (spec v0.2 §5.1): the issuer is resolved per call from
+  // `auth.raw.iss`, which both the JWT validator (`auth/jwt.ts`) and the
+  // introspection validator (`auth/introspection.ts`) populate from the
+  // validated token. Per-tenant isolation is enforced by including the
+  // issuer in the upstream-cache key (spec §7, §8).
   const as = config.auth.authorizationServer
   const upstreamForImpl =
-    as && typeof as !== "function"
+    as !== undefined
       ? createUpstreamFor({
-          issuer: as.issuer,
+          issuer:
+            typeof as === "function"
+              ? (auth: AuthContext) => {
+                  const raw = auth.raw as Record<string, unknown> | undefined
+                  const iss = raw?.iss
+                  if (typeof iss !== "string" || iss.length === 0) {
+                    throw new Error(
+                      `upstreamFor: cannot resolve issuer for function-form authorizationServer because auth.raw.iss is missing (token-type=${auth.tokenType}). The introspection response or JWT must carry an "iss" claim.`,
+                    )
+                  }
+                  return iss
+                }
+              : as.issuer,
           resourceIndicator: config.resourceIndicator,
           tokenStore: config.auth.tokenStore,
           ...(onEvent ? { audit: onEvent } : {}),
@@ -547,9 +561,7 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   const upstreamFor = (audience: string) => {
     if (upstreamForImpl === null) {
       throw new Error(
-        as && typeof as === "function"
-          ? "upstreamFor: function-form authorizationServer is not yet supported by upstreamFor — requires a single static AS (v0.2 §5.6)"
-          : "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
+        "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
       )
     }
     return (args: UpstreamForArgs): Promise<UpstreamCredential> => upstreamForImpl(audience)(args)

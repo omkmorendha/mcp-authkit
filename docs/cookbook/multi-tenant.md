@@ -132,3 +132,51 @@ directory (database, secret manager, config service) you control.
   identifier, a leaked PAT from tenant A can authenticate against
   tenant B's `/mcp`. Pick a namespacing scheme
   (`acme:user-123`, `tenant-id:user-id`) and apply it everywhere.
+
+## Upstream credentials (`upstreamFor` / `onBehalfOf`) with function-form AS
+
+`upstreamFor` works the same way under a function-form `authorizationServer`
+as it does for a single static AS. The framework resolves the issuer per call
+from `auth.raw.iss` — which the JWT validator and the introspection validator
+both populate from the validated token — and uses that issuer for:
+
+- the RFC 8693 token exchange request (so each tenant exchanges against its
+  own AS), and
+- the upstream-credential cache key (so two tenants minting tokens for the
+  same upstream audience never collide).
+
+```ts
+import { onBehalfOf } from "mcp-authkit/upstream"
+
+authkit.registerTool(mcp, {
+  name: "search-upstream",
+  description: "Search the upstream API",
+  inputSchema: { q: z.string() },
+  requireScopes: ["mcp:read"],
+  handler: async ({ input, auth }) => {
+    const cred = await onBehalfOf({
+      authkit,
+      auth,
+      audience: "https://upstream.example.com",
+      scopes: ["upstream:read"],
+    })
+    const url = `https://upstream.example.com/search?q=${encodeURIComponent(input.q)}`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${cred.token}` },
+    })
+    // ...
+  },
+})
+```
+
+Constraints:
+
+- **OAuth-validated tokens only.** PAT, static-token, and bypass-authenticated
+  `AuthContext`s cannot perform RFC 8693 token exchange; the helper rejects
+  them with a clear error that names the `tokenType`. Plan tool-level fallback
+  behaviour if your deployment mixes PATs with upstream-credential tools.
+- **`iss` must be present in the validated token.** JWT validation guarantees
+  this (the validator already enforced `iss == as.issuer` for the resolved
+  tenant). RFC 7662 makes `iss` optional in introspection responses; if your
+  AS omits it, the helper throws a typed error rather than guessing. Configure
+  your AS to include `iss` in introspection results.

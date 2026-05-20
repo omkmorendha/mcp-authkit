@@ -68,6 +68,17 @@ LRU (cap 100) and the framework logs a `warn` at startup.
 A cache hit returns a token with **at least 30 s** of useful life.
 No need to re-check expiry in the handler.
 
+## Multi-tenant deployments (function-form `authorizationServer`)
+
+`upstreamFor` is supported under both the static-object and the function-form
+`authorizationServer` (spec [§5.1](../spec/v0.2.md#51-multi-tenant-as)). In
+multi-tenant mode the issuer is resolved per call from `auth.raw.iss` (the
+`iss` claim from the validated JWT or introspection response) and is included
+in the cache key so two tenants minting tokens for the same upstream audience
+never collide. See [Cookbook: Multi-tenant](./multi-tenant.md#upstream-credentials-upstreamfor--onbehalfof-with-function-form-as)
+for an end-to-end example. PAT-, static-, and bypass-authenticated requests
+cannot perform RFC 8693 exchange and are rejected with a clear error.
+
 ## Configuring the AS
 
 For token exchange to succeed the AS must:
