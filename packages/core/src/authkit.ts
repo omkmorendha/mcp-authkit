@@ -537,6 +537,7 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
     as && typeof as !== "function"
       ? createUpstreamFor({
           issuer: as.issuer,
+          resourceIndicator: config.resourceIndicator,
           tokenStore: config.auth.tokenStore,
           ...(onEvent ? { audit: onEvent } : {}),
           logger,

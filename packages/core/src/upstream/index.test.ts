@@ -11,6 +11,7 @@ import {
 
 const AUDIENCE = "https://upstream.example.test/"
 const ISSUER = "https://as.example.test/"
+const RESOURCE_INDICATOR = "https://mcp.example.test/"
 
 function buildAuth(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
@@ -117,7 +118,13 @@ describe("createUpstreamFor", () => {
       const { store, cacheSpy } = buildFakeStore({ withCacheMethods: true })
       const exchange = mockedExchange()
       const audit = vi.fn<(event: AuditEvent) => Promise<void>>(async () => {})
-      const factory = createUpstreamFor({ issuer: ISSUER, tokenStore: store, audit, exchange })
+      const factory = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        audit,
+        exchange,
+      })
       const fetcher = factory(AUDIENCE)
 
       const out = await fetcher({ auth: buildAuth(), scopes: ["upstream:write", "upstream:read"] })
@@ -157,7 +164,12 @@ describe("createUpstreamFor", () => {
     it("returns cached value on second call within TTL without re-exchanging", async () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const exchange = mockedExchange()
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       const auth = buildAuth()
       const first = await fetcher({ auth, scopes: ["upstream:read"] })
@@ -183,7 +195,12 @@ describe("createUpstreamFor", () => {
           scopes: input.scopes ?? [],
         }
       })
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       const a = await fetcher({ auth: buildAuth(), scopes: ["upstream:read"] })
       const b = await fetcher({ auth: buildAuth(), scopes: ["upstream:read"] })
@@ -201,7 +218,12 @@ describe("createUpstreamFor", () => {
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         scopes: [],
       }))
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       const now = Date.now()
       await fetcher({ auth: buildAuth(), scopes: [] })
@@ -217,7 +239,12 @@ describe("createUpstreamFor", () => {
     it("isolates cache by (subject, audience, scopes)", async () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const exchange = mockedExchange()
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       await fetcher({ auth: buildAuth({ subject: "alice" }), scopes: ["read"] })
       await fetcher({ auth: buildAuth({ subject: "bob" }), scopes: ["read"] })
@@ -235,6 +262,7 @@ describe("createUpstreamFor", () => {
       const logger = { warn: vi.fn() }
       const fetcher = createUpstreamFor({
         issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
         tokenStore: store,
         logger,
         exchange: mockedExchange(),
@@ -259,6 +287,7 @@ describe("createUpstreamFor", () => {
       const exchange = mockedExchange()
       const fetcher = createUpstreamFor({
         issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
         tokenStore: store,
         logger,
         exchange,
@@ -276,6 +305,7 @@ describe("createUpstreamFor", () => {
       const logger = { warn: vi.fn() }
       const fetcher = createUpstreamFor({
         issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
         tokenStore: store,
         logger,
         exchange: mockedExchange(),
@@ -289,7 +319,12 @@ describe("createUpstreamFor", () => {
     it("throws clearly when auth.raw.access_token is missing", async () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const exchange = mockedExchange()
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       await expect(
         fetcher({
@@ -303,7 +338,12 @@ describe("createUpstreamFor", () => {
     it("throws when auth.raw.access_token is the empty string", async () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const exchange = mockedExchange()
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       await expect(
         fetcher({
@@ -324,6 +364,7 @@ describe("createUpstreamFor", () => {
       const audit = vi.fn<(event: AuditEvent) => Promise<void>>(async () => {})
       const fetcher = createUpstreamFor({
         issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
         tokenStore: store,
         audit,
         exchange,
@@ -352,7 +393,12 @@ describe("createUpstreamFor", () => {
       const exchange = vi.fn(async () => {
         throw new Error("boom")
       })
-      const fetcher = createUpstreamFor({ issuer: ISSUER, tokenStore: store, exchange })(AUDIENCE)
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
 
       const result = await fetcher({ auth: buildAuth(), scopes: ["read"] }).then(
         (ok) => ({ ok }),
@@ -371,11 +417,60 @@ describe("createUpstreamFor", () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const factory = createUpstreamFor({
         issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
         tokenStore: store,
         exchange: mockedExchange(),
       })
       expect(() => factory("")).toThrow(/audience/)
     })
+  })
+})
+
+describe("createUpstreamFor — subject-audience enforcement (spec v0.2 §8)", () => {
+  it("passes resourceIndicator as expectedSubjectAudience on every exchange call", async () => {
+    const { store } = buildFakeStore({ withCacheMethods: true })
+    const exchange = mockedExchange()
+    const fetcher = createUpstreamFor({
+      issuer: ISSUER,
+      resourceIndicator: RESOURCE_INDICATOR,
+      tokenStore: store,
+      exchange,
+    })(AUDIENCE)
+
+    await fetcher({ auth: buildAuth(), scopes: ["read"] })
+
+    expect(exchange).toHaveBeenCalledTimes(1)
+    const call = exchange.mock.calls[0]?.[0]
+    expect(call).toBeDefined()
+    expect(call?.expectedSubjectAudience).toBe(RESOURCE_INDICATOR)
+  })
+
+  it("propagates a subject-audience TokenExchangeError and audits the rejection", async () => {
+    const { store } = buildFakeStore({ withCacheMethods: true })
+    const exchange = vi.fn(async () => {
+      throw new TokenExchangeError(
+        "subject-audience",
+        "subject token audience does not match expected resource indicator",
+      )
+    })
+    const audit = vi.fn<(event: AuditEvent) => Promise<void>>(async () => {})
+    const fetcher = createUpstreamFor({
+      issuer: ISSUER,
+      resourceIndicator: RESOURCE_INDICATOR,
+      tokenStore: store,
+      audit,
+      exchange,
+    })(AUDIENCE)
+
+    await expect(fetcher({ auth: buildAuth(), scopes: ["read"] })).rejects.toMatchObject({
+      name: "TokenExchangeError",
+      reason: "subject-audience",
+    })
+
+    expect(audit).toHaveBeenCalledTimes(1)
+    const event = audit.mock.calls[0]?.[0]
+    expect(event?.type).toBe("upstream.exchange_reject")
+    expect(event?.detail.reason).toBe("token-exchange:subject-audience")
   })
 })
 

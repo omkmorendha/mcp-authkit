@@ -54,7 +54,7 @@ export interface UpstreamLogger {
  */
 type CallSpecificExchangeInput = Pick<
   ExchangeTokenInput,
-  "subjectToken" | "subjectTokenType" | "audience" | "scopes"
+  "subjectToken" | "subjectTokenType" | "audience" | "scopes" | "expectedSubjectAudience"
 >
 
 /**
@@ -64,6 +64,12 @@ type CallSpecificExchangeInput = Pick<
 export interface UpstreamHelperConfig {
   /** Issuer used for RFC 8414 discovery when minting tokens. */
   issuer: string
+  /**
+   * Server resource indicator (spec v0.2 §8). Passed to `exchangeToken`
+   * as `expectedSubjectAudience` on every call so the helper rejects
+   * wrong-audience subject tokens before any AS request.
+   */
+  resourceIndicator: string
   tokenStore: TokenStore
   audit?: AuditSink
   logger?: UpstreamLogger
@@ -150,6 +156,7 @@ export function createUpstreamFor(
         subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
         audience,
         scopes: sortedScopes,
+        expectedSubjectAudience: helperConfig.resourceIndicator,
       }
 
       let minted: Awaited<ReturnType<typeof doExchange>>
