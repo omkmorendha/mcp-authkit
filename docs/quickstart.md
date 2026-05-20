@@ -281,7 +281,14 @@ with your real issuer's `issuer` URL and `jwksUri`.
 
 ## 8. What to read next
 
+- [`docs/production.md`](production.md) — operator walkthrough from a
+  Postgres URL to a running server, with TLS, supervisor, and CLI
+  verification.
+- [`docs/cookbook/`](cookbook/) — per-store, per-adapter, per-flow
+  recipes (Postgres, SQLite, Redis, Hono, multi-tenant, upstream
+  credentials, production stdio).
 - [`docs/spec/v0.1.md`](spec/v0.1.md) — the full v0.1 specification.
+- [`docs/spec/v0.2.md`](spec/v0.2.md) — the v0.2 specification.
 - [`examples/hello-world/`](../examples/hello-world/) — a runnable copy of
   the server above, used by the CI smoke and Python E2E suites.
 - [`CHANGELOG.md`](../CHANGELOG.md) — what shipped in 0.1.0.

@@ -21,4 +21,9 @@ Single-file durability, `journal_mode = WAL`, and `BEGIN IMMEDIATE` locking
 make this suitable for single-process deployments. For multi-process
 deployments, use the Postgres store instead.
 
-See [`docs/spec/v0.2.md#64-sqlite-store`](../../docs/spec/v0.2.md#64-sqlite-store).
+See [`docs/spec/v0.2.md#64-sqlite-store`](../../docs/spec/v0.2.md#64-sqlite-store)
+for the contract and
+[`docs/cookbook/sqlite-store.md`](../../docs/cookbook/sqlite-store.md)
+for the operator-facing recipe (WAL backups, file layout, what to test).
+The end-to-end deployment walkthrough is
+[`docs/production.md`](../../docs/production.md).

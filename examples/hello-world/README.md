@@ -97,4 +97,7 @@ deployments:
 - Set `RESOURCE_INDICATOR` to your public MCP URL so the
   audience-validation and Host-header allowlist match your deployment.
 
-Production deployment configuration is out of scope for this example.
+For an end-to-end production walkthrough — config-file loader, durable
+store, CLI verification, supervisor wiring — see
+[`docs/production.md`](../../docs/production.md) and the
+[`docs/cookbook/`](../../docs/cookbook/) entries.

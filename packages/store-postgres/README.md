@@ -17,4 +17,9 @@ await store.init() // runs migrations idempotently
 
 The pool belongs to the consumer; `store.close()` does **not** close it.
 
-See [`docs/spec/v0.2.md#63-postgres-store`](../../docs/spec/v0.2.md#63-postgres-store).
+See [`docs/spec/v0.2.md#63-postgres-store`](../../docs/spec/v0.2.md#63-postgres-store)
+for the contract and
+[`docs/cookbook/postgres-store.md`](../../docs/cookbook/postgres-store.md)
+for the operator-facing recipe (env vars, pool sizing, what to test).
+The end-to-end deployment walkthrough is
+[`docs/production.md`](../../docs/production.md).

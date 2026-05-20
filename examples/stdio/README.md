@@ -148,6 +148,11 @@ framing — decode them with `tryDecodeFrame(key, buffer, expectedMinCounter)`.
 
 ## Production notes
 
+For an end-to-end walkthrough see
+[`docs/production.md`](../../docs/production.md) and the
+[`production-stdio`](../../docs/cookbook/production-stdio.md) cookbook
+entry.
+
 - The signed-handshake transport authenticates the *channel*, not the
   caller. Inside the framed channel you still authenticate the request
   with a PAT or the static token. The example wires the static token

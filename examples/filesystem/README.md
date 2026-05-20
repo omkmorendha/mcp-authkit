@@ -96,6 +96,10 @@ that is the whole point of choosing the SQLite store over
 
 ## Production notes
 
+For an end-to-end walkthrough see
+[`docs/production.md`](../../docs/production.md) and the
+[`sqlite-store`](../../docs/cookbook/sqlite-store.md) cookbook entry.
+
 This example is tuned for local development and single-process
 deployments. For real deployments:
 
