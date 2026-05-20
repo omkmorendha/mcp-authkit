@@ -1,6 +1,6 @@
 {
   "name": "mcp-authkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "OAuth + PAT auth for MCP servers — token validation pipeline, scope matcher, PAT lifecycle, audit dispatch.",
   "license": "MIT",

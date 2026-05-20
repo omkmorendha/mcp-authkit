@@ -1,6 +1,6 @@
 {
   "name": "mcp-authkit-adapter-express",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Express adapter for mcp-authkit — mounts MCP, metadata, and PAT handlers as Express middleware.",
   "license": "MIT",
