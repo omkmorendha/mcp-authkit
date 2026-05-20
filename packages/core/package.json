@@ -69,6 +69,10 @@
     "./upstream": {
       "types": "./dist/upstream/index.d.ts",
       "import": "./dist/upstream/index.js"
+    },
+    "./oauth/jwt-bearer": {
+      "types": "./dist/oauth/jwt-bearer.d.ts",
+      "import": "./dist/oauth/jwt-bearer.js"
     }
   },
   "files": [
