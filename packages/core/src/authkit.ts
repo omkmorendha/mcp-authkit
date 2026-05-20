@@ -546,7 +546,9 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   const upstreamFor = (audience: string) => {
     if (upstreamForImpl === null) {
       throw new Error(
-        "upstreamFor: a static authorizationServer must be configured to mint upstream credentials (function-form / multi-tenant AS is not supported)",
+        as && typeof as === "function"
+          ? "upstreamFor: function-form authorizationServer is not yet supported by upstreamFor — requires a single static AS (v0.2 §5.6)"
+          : "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
       )
     }
     return (args: UpstreamForArgs): Promise<UpstreamCredential> => upstreamForImpl(audience)(args)

@@ -1,0 +1,60 @@
+{
+  "name": "mcp-authkit-store-redis",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Redis cache decorator for mcp-authkit TokenStore — caches read-mostly paths over an underlying store; not a primary store.",
+  "license": "MIT",
+  "author": "Om Morendha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omkmorendha/mcp-authkit.git",
+    "directory": "packages/store-redis"
+  },
+  "homepage": "https://github.com/omkmorendha/mcp-authkit#readme",
+  "bugs": {
+    "url": "https://github.com/omkmorendha/mcp-authkit/issues"
+  },
+  "keywords": [
+    "mcp",
+    "oauth",
+    "authkit",
+    "token-store",
+    "redis",
+    "cache",
+    "decorator",
+    "model-context-protocol"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "ioredis": "^5.4.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0",
+    "ioredis": "^5.4.0",
+    "mcp-authkit-store-memory": "workspace:*"
+  }
+}
