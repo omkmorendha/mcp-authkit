@@ -29,21 +29,27 @@ importers:
 
   e2e/python:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.13
+        version: 1.19.14(hono@4.12.21)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
-      express:
-        specifier: ^5.0.0
-        version: 5.2.1
-      jose:
-        specifier: ^6.2.3
-        version: 6.2.3
+      better-sqlite3:
+        specifier: ^11.0.0
+        version: 11.10.0
+      hono:
+        specifier: ^4.12.18
+        version: 4.12.21
       mcp-authkit:
         specifier: workspace:*
         version: link:../../packages/core
-      mcp-authkit-store-memory:
+      mcp-authkit-cli:
         specifier: workspace:*
-        version: link:../../packages/store-memory
+        version: link:../../packages/cli
+      mcp-authkit-store-sqlite:
+        specifier: workspace:*
+        version: link:../../packages/store-sqlite
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -51,9 +57,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@types/express':
-        specifier: ^5.0.0
-        version: 5.0.6
+      '@types/better-sqlite3':
+        specifier: ^7.6.11
+        version: 7.6.13
       '@types/node':
         specifier: ^25.9.0
         version: 25.9.0

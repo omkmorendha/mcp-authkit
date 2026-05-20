@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Python E2E runner (spec §18).
+# Python E2E runner (spec v0.2 §16).
 #
-# Starts the Node harness, captures its handshake line, exports the URL
-# and JWT into the environment, runs the Python script, and tears the
-# harness down on exit (success or failure).
+# Builds the workspace if needed, starts the Hono-backed harness in a
+# subprocess, captures its handshake line, exports the URL / config
+# path / CLI bin into the environment, runs the Python script (which
+# mints a PAT via the `mcp-authkit` CLI subprocess and calls the
+# `echo` tool), and tears the harness down on exit.
 
 set -euo pipefail
 
@@ -12,17 +14,18 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 
 PYTHON="${PYTHON:-python3}"
 
-# Ensure the Python interpreter has `requests` available. We don't install
-# silently — bail with a clear message if it's missing.
 if ! "$PYTHON" -c "import requests" >/dev/null 2>&1; then
   echo "E2E SETUP: 'requests' is not installed for $PYTHON." >&2
   echo "  Install it, e.g.:  $PYTHON -m pip install requests" >&2
   exit 1
 fi
 
-# Build the workspace once if dist artefacts are missing. Subsequent runs
-# skip this and are <10s end-to-end (spec §18).
-if [ ! -f "$ROOT/packages/core/dist/index.js" ]; then
+# Build the workspace once if dist artefacts are missing. The CLI bin
+# needs `packages/cli/dist/bin/mcp-authkit.js` and the harness imports
+# from `packages/core/dist/`. Subsequent runs skip this and are <10s
+# end-to-end (spec §16).
+CLI_BIN="$ROOT/packages/cli/dist/bin/mcp-authkit.js"
+if [ ! -f "$ROOT/packages/core/dist/index.js" ] || [ ! -f "$CLI_BIN" ]; then
   echo "E2E SETUP: building workspace..." >&2
   (cd "$ROOT" && pnpm install --frozen-lockfile && pnpm build) >&2
 fi
@@ -30,6 +33,10 @@ fi
 TMPDIR_E2E="$(mktemp -d -t mcp-authkit-e2e.XXXXXX)"
 HARNESS_LOG="$TMPDIR_E2E/harness.log"
 HARNESS_STDOUT="$TMPDIR_E2E/harness.out"
+DB_PATH="$TMPDIR_E2E/authkit.db"
+
+export MCP_AUTHKIT_E2E_DB="$DB_PATH"
+export MCP_AUTHKIT_E2E_CLI_BIN="$CLI_BIN"
 
 cleanup() {
   if [ -n "${HARNESS_PID:-}" ] && kill -0 "$HARNESS_PID" 2>/dev/null; then
@@ -44,12 +51,11 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Start the harness. stdout → log file we tail; stderr → log file for debugging.
 (cd "$HERE" && pnpm -s start) >"$HARNESS_STDOUT" 2>"$HARNESS_LOG" &
 HARNESS_PID=$!
 
-# Poll for the first complete stdout line (the JSON handshake). Bound the
-# wait at 60s in case install/build is needed under cold cache.
+# Poll for the first complete stdout line (the JSON handshake). Bound
+# the wait at 60s in case install/build is needed under cold cache.
 HANDSHAKE=""
 for _ in $(seq 1 600); do
   if ! kill -0 "$HARNESS_PID" 2>/dev/null; then
@@ -63,15 +69,14 @@ for _ in $(seq 1 600); do
   if [ -s "$HARNESS_STDOUT" ]; then
     CANDIDATE="$(head -n 1 "$HARNESS_STDOUT")"
     if [ -n "$CANDIDATE" ]; then
-      # Only break once the handshake is parseable JSON with both keys —
-      # guards against partial-write reads of the first stdout line.
       if "$PYTHON" -c "
 import json, sys
 try:
     obj = json.loads(sys.argv[1])
 except Exception:
     sys.exit(2)
-if not (isinstance(obj, dict) and isinstance(obj.get('url'), str) and isinstance(obj.get('jwt'), str)):
+needed = ('url', 'configPath', 'cliBin')
+if not (isinstance(obj, dict) and all(isinstance(obj.get(k), str) for k in needed)):
     sys.exit(2)
 " "$CANDIDATE" 2>/dev/null; then
         HANDSHAKE="$CANDIDATE"
@@ -92,10 +97,16 @@ if [ -z "$HANDSHAKE" ]; then
 fi
 
 URL="$("$PYTHON" -c "import json,sys; print(json.loads(sys.argv[1])['url'])" "$HANDSHAKE")"
-JWT="$("$PYTHON" -c "import json,sys; print(json.loads(sys.argv[1])['jwt'])" "$HANDSHAKE")"
+CONFIG_PATH="$("$PYTHON" -c "import json,sys; print(json.loads(sys.argv[1])['configPath'])" "$HANDSHAKE")"
+CLI_BIN_OUT="$("$PYTHON" -c "import json,sys; print(json.loads(sys.argv[1])['cliBin'])" "$HANDSHAKE")"
 
 export MCP_AUTHKIT_URL="$URL"
-export MCP_AUTHKIT_JWT="$JWT"
+export MCP_AUTHKIT_CONFIG="$CONFIG_PATH"
+export MCP_AUTHKIT_CLI="$CLI_BIN_OUT"
+# The CLI subprocess loads the same config file as the server, so it
+# needs the same DB path (already exported) and resource indicator in
+# its env.
+export RESOURCE_INDICATOR="${URL}/mcp"
 
 set +e
 "$PYTHON" "$HERE/e2e.py"
