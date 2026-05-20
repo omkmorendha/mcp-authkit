@@ -850,8 +850,6 @@ describe("upstreamFor with function-form authorizationServer", () => {
       },
     })
     const kit = createAuthKit(config)
-    expect(() => kit.upstreamFor("https://upstream.example.test/")).toThrow(
-      /function-form/,
-    )
+    expect(() => kit.upstreamFor("https://upstream.example.test/")).toThrow(/function-form/)
   })
 })
