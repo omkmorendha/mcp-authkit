@@ -55,13 +55,16 @@ jobs:
 
       # Node 22 LTS ships with npm 10. Trusted Publishers / OIDC requires
       # npm >= 11.5.1, and pnpm's OIDC path shells out to npm for the token
-      # exchange (pnpm/pnpm#8091). Upgrade explicitly.
+      # exchange (pnpm/pnpm#8091). `--force` avoids the MODULE_NOT_FOUND
+      # crash from npm half-replacing its own running install mid-upgrade.
       - name: Upgrade npm to a Trusted-Publishers-capable version
         run: |
-          npm install -g npm@latest
+          npm install -g --force npm@11
           echo "node: $(node --version)"
           echo "npm:  $(npm --version)"
           echo "pnpm: $(pnpm --version)"
+          test "$(printf '%s\n11.5.1\n' "$(npm --version)" | sort -V | head -1)" = "11.5.1" \
+            || { echo "::error::npm is older than 11.5.1; Trusted Publishers will fail"; exit 1; }
 
       - name: Install
         run: pnpm install --frozen-lockfile
