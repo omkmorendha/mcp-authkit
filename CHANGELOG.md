@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`upstreamFor` now supports function-form `authorizationServer`** (#107).
+  Previously the helper refused at call time when the AS was configured as
+  a per-request resolver (spec v0.2 §5.1), which made the multi-tenant code
+  path incompatible with RFC 8693 token exchange. The issuer is now resolved
+  per call from `auth.raw.iss` and included in the upstream-credential cache
+  key, so two tenants minting tokens for the same upstream audience cannot
+  collide. PAT-, static-, and bypass-authenticated `AuthContext`s are
+  rejected with a clear error naming the `tokenType`. No public API change.
+
 ## [0.2.0] — 2026-05-20
 
 Second release. Implements the full v0.2 spec
