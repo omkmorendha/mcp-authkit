@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["server.ts"]
+  "include": ["server.ts", "mcp-authkit.config.ts"]
 }

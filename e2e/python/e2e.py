@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""End-to-end test for mcp-authkit (spec §18).
+"""End-to-end test for mcp-authkit — v0.2 refresh (spec §16).
 
-Stdlib + `requests` only. Reads ``MCP_AUTHKIT_URL`` and ``MCP_AUTHKIT_JWT``
-from the environment (populated by ``run.sh`` from the Node harness
-handshake line).
+Stdlib + ``requests`` only. Reads ``MCP_AUTHKIT_URL``,
+``MCP_AUTHKIT_CONFIG``, and ``MCP_AUTHKIT_CLI`` from the environment
+(populated by ``run.sh`` from the Node harness handshake line).
 
 Flow
 ----
-1. ``POST /pats`` with the test JWT → mint a PAT.
+1. Run ``node <cliBin> --config <configPath> --json mint-pat
+   --user e2e-user --name e2e --scopes echo:say`` in a subprocess.
+   Parse ``{token,id,expiresAt}`` from stdout.
 2. ``POST /mcp`` ``initialize`` with the PAT as Bearer → capture
    ``Mcp-Session-Id``.
 3. ``POST /mcp`` ``notifications/initialized``.
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from typing import Any
 
@@ -28,6 +31,7 @@ import requests
 
 ECHO_INPUT = "hello, mcp-authkit"
 TIMEOUT_SECONDS = 10
+CLI_TIMEOUT_SECONDS = 30
 
 
 def fail(msg: str, *, detail: Any = None) -> "None":
@@ -41,9 +45,48 @@ def require_env(name: str) -> str:
     val = os.environ.get(name)
     if not val:
         fail(f"required env var {name} is not set")
-        # Unreachable; appeases type-checkers.
-        return ""
+        return ""  # Unreachable; appeases type-checkers.
     return val
+
+
+def mint_pat_via_cli(cli_bin: str, config_path: str) -> str:
+    """Invoke ``mcp-authkit mint-pat --json`` in a subprocess and return
+    the PAT. The token is on stdout; logs (pino) go to stderr."""
+    cmd = [
+        "node",
+        cli_bin,
+        "--config",
+        config_path,
+        "--json",
+        "mint-pat",
+        "--user",
+        "e2e-user",
+        "--name",
+        "e2e",
+        "--scopes",
+        "echo:say",
+    ]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=CLI_TIMEOUT_SECONDS,
+        env=os.environ.copy(),
+    )
+    if proc.returncode != 0:
+        fail(
+            f"mint-pat CLI exited {proc.returncode}",
+            detail={"stdout": proc.stdout, "stderr": proc.stderr},
+        )
+    try:
+        payload = json.loads(proc.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError) as exc:
+        fail(f"mint-pat stdout not JSON: {exc}", detail=proc.stdout)
+        return ""  # Unreachable.
+    token = payload.get("token")
+    if not isinstance(token, str) or not token.startswith("mcp_pat_"):
+        fail("mint-pat response missing/invalid token", detail=payload)
+    return token
 
 
 def parse_mcp_response(resp: requests.Response) -> dict[str, Any]:
@@ -55,7 +98,6 @@ def parse_mcp_response(resp: requests.Response) -> dict[str, Any]:
     if ctype.startswith("application/json"):
         return resp.json()
     if "text/event-stream" in ctype:
-        # SSE: find the first ``data:`` line and parse it as JSON.
         for line in body.splitlines():
             if line.startswith("data:"):
                 payload = line[len("data:"):].strip()
@@ -68,25 +110,14 @@ def parse_mcp_response(resp: requests.Response) -> dict[str, Any]:
 
 def main() -> None:
     base = require_env("MCP_AUTHKIT_URL").rstrip("/")
-    jwt = require_env("MCP_AUTHKIT_JWT")
+    config_path = require_env("MCP_AUTHKIT_CONFIG")
+    cli_bin = require_env("MCP_AUTHKIT_CLI")
+
+    # 1. Mint a PAT via the CLI subprocess (spec §16).
+    pat = mint_pat_via_cli(cli_bin, config_path)
 
     session = requests.Session()
     session.headers.update({"Accept": "application/json, text/event-stream"})
-
-    # 1. Mint a PAT using the test JWT.
-    mint = session.post(
-        f"{base}/pats",
-        headers={"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"},
-        data=json.dumps({"name": "e2e", "scopes": ["echo:say"], "expiresInDays": 1}),
-        timeout=TIMEOUT_SECONDS,
-    )
-    if mint.status_code != 201:
-        fail(f"PAT mint expected 201, got {mint.status_code}", detail=mint.text)
-    mint_body = mint.json()
-    pat = mint_body.get("token")
-    if not isinstance(pat, str) or not pat.startswith("mcp_pat_"):
-        fail("mint response missing/invalid token", detail=mint_body)
-
     bearer = {"Authorization": f"Bearer {pat}"}
 
     # 2. initialize the MCP session.
@@ -171,5 +202,7 @@ if __name__ == "__main__":
         fail("interrupted")
     except requests.RequestException as exc:
         fail(f"HTTP error: {exc}")
+    except subprocess.TimeoutExpired as exc:
+        fail(f"CLI subprocess timed out: {exc}")
     except Exception as exc:  # noqa: BLE001 — last-resort funnel into fail()
         fail(f"unexpected error: {exc}")
