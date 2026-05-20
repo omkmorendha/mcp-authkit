@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-label="mcp-authkit">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield outline -->
+  <path d="M32 4 L56 14 V32 C56 46 45 56 32 60 C19 56 8 46 8 32 V14 Z"
+        fill="url(#g)"/>
+  <!-- Inner contrast band -->
+  <path d="M32 10 L51 18 V32 C51 43 42 51 32 54 C22 51 13 43 13 32 V18 Z"
+        fill="#0b1220" opacity="0.18"/>
+  <!-- Keyhole: circle + slot -->
+  <circle cx="32" cy="28" r="6" fill="#fff"/>
+  <path d="M29 33 H35 L36.5 44 H27.5 Z" fill="#fff"/>
+</svg>

@@ -34,3 +34,7 @@ worktrees/
 # spec-issue produces this as a per-worktree planning artifact.
 # Do NOT commit it — see CLAUDE.md §4.
 PLAN.md
+
+# VitePress build artifacts
+docs/.vitepress/dist
+docs/.vitepress/cache
