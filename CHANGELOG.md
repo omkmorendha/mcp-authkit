@@ -7,18 +7,15 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
-### Fixed
-
-- **`upstreamFor` now supports function-form `authorizationServer`** (#107).
-  Previously the helper refused at call time when the AS was configured as
-  a per-request resolver (spec v0.2 §5.1), which made the multi-tenant code
-  path incompatible with RFC 8693 token exchange. The issuer is now resolved
-  per call from `auth.raw.iss` and included in the upstream-credential cache
-  key, so two tenants minting tokens for the same upstream audience cannot
-  collide. PAT-, static-, and bypass-authenticated `AuthContext`s are
-  rejected with a clear error naming the `tokenType`. No public API change.
-
 ## [0.2.0] — 2026-05-20
+
+First npm release: all 9 packages published to the public registry on
+2026-05-20 from `304ef2b`. Released to `latest` under unscoped names
+(`mcp-authkit`, `mcp-authkit-adapter-{express,hono}`,
+`mcp-authkit-store-{memory,postgres,sqlite,redis}`, `mcp-authkit-config`,
+`mcp-authkit-cli`). The published tarballs include three fixes (#108,
+#110, #111) that landed after the original release-prep commit (#104);
+they are listed under "Fixed" below.
 
 Second release. Implements the full v0.2 spec
 ([`docs/spec/v0.2.md`](docs/spec/v0.2.md)) and nothing beyond it. v0.2
@@ -77,6 +74,31 @@ every item that v0.1 §0 deferred.
   of the v0.1 §14 matrix.
 - **Python E2E test (refresh)** — mints a PAT through the CLI as a
   subprocess and exercises a Hono server.
+
+### Fixed
+
+- **CLI binary now ships from the primary `mcp-authkit` package** (#108).
+  Previously only `mcp-authkit-cli` exposed the `mcp-authkit` bin, so a
+  user running `pnpm add mcp-authkit` followed by `pnpm exec mcp-authkit`
+  (as the README and production guide instruct) hit "command not found".
+  A thin ESM shebang wrapper under `packages/core/src/bin/mcp-authkit.ts`
+  delegates to `mcp-authkit-cli`'s `run()`.
+- **Token-exchange subject audience is validated before the AS request**
+  (#110). Spec v0.2 §8 requires the subject token passed to
+  `exchangeToken` to have `aud == resourceIndicator`. The previous
+  implementation only validated the minted token returned by the AS,
+  allowing a wrong-audience subject token to reach the AS first.
+  `exchangeToken` gains an `expectedSubjectAudience` input; opaque
+  (non-JWT) subject tokens fail closed.
+- **`upstreamFor` supports the function-form `authorizationServer`**
+  (#111). Previously the helper refused at call time when the AS was
+  configured as a per-request resolver (spec v0.2 §5.1), making the
+  multi-tenant code path incompatible with RFC 8693 token exchange.
+  The issuer is now resolved per call from `auth.raw.iss` and included
+  in the upstream-credential cache key so two tenants minting tokens
+  for the same upstream audience cannot collide. PAT-, static-, and
+  bypass-authenticated `AuthContext`s are rejected with a clear error
+  naming the `tokenType`. No public API change.
 
 ### Changed
 
