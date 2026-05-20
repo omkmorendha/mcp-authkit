@@ -5,6 +5,104 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-20
+
+Second release. Implements the full v0.2 spec
+([`docs/spec/v0.2.md`](docs/spec/v0.2.md)) and nothing beyond it. v0.2
+turns the v0.1 core into a production-deployable framework by shipping
+every item that v0.1 §0 deferred.
+
+### Added
+
+- **Postgres token store (`mcp-authkit-store-postgres`)** — durable
+  `TokenStore` backed by `node-postgres`. Stores PATs, refresh-token
+  families, and the upstream-credential cache. Integration tests run
+  against a real Postgres in CI.
+- **SQLite token store (`mcp-authkit-store-sqlite`)** — durable
+  single-node `TokenStore` backed by `better-sqlite3`. Same interface
+  as Postgres; suitable for filesystem-style deployments.
+- **Redis cache decorator (`mcp-authkit-store-redis`)** — wraps an
+  underlying store and caches read-mostly paths. Not a primary store:
+  writes go through to the underlying store; cache invalidates on
+  revoke / rotate.
+- **Hono adapter (`mcp-authkit-adapter-hono`)** — thin wrappers over
+  the framework-agnostic handlers, passing the same handler matrix
+  as Express. Core has zero Hono imports.
+- **`mcp-authkit` CLI (`mcp-authkit-cli`)** — `init`, `mint-pat`,
+  `verify-config`, `jwks-fetch`, `gen-secret`. Each subcommand is
+  covered by a subprocess test.
+- **Config file format (`mcp-authkit-config`)** — `defineConfig()`
+  identity helper plus a bounded `tsx`-backed loader that the CLI
+  consumes (`mcp-authkit.config.ts`).
+- **Multi-tenant authorization server** — `authorizationServer` now
+  also accepts a function `(req) => AuthorizationServer | Promise<...>`,
+  resolved per-request. Single-AS form is unchanged.
+- **RFC 7591 Dynamic Client Registration consumer** — registers the
+  framework as a client at startup against AS metadata; persists the
+  resulting `client_id` / `client_secret` via the configured store.
+- **RFC 7523 JWT Bearer Assertion grant** — exchange a signed
+  assertion for an upstream access token.
+- **RFC 6749 §4.4 Client Credentials grant** — service-to-service
+  token acquisition for upstream APIs.
+- **RFC 8693 Token Exchange** — generic token-exchange helper plus
+  on-behalf-of (`actor_token`) flow built on it.
+- **Upstream credential helper (`mcp-authkit/upstream`)** — resolves a
+  cached upstream credential for an authenticated MCP request, with
+  audience-bound caching keyed on the MCP subject and the upstream
+  resource indicator. Refuses cleanly when `authorizationServer` is
+  in function form.
+- **Production stdio support (`mcp-authkit/stdio`)** —
+  signed-handshake transport for non-browser deployments. HMAC
+  comparison is constant time; the bypass-mode local-dev path is
+  unchanged.
+- **Examples** — `postgres` (Postgres store), `filesystem` (SQLite
+  store), and `stdio` (signed-handshake stdio).
+- **Production deployment guide and cookbooks** — walks an operator
+  from "I have a Postgres URL" to "I have a running server", with
+  per-store and per-adapter cookbook pages covering the matrix.
+- **v0.2 security test matrix** — covers spec §12 additions on top
+  of the v0.1 §14 matrix.
+- **Python E2E test (refresh)** — mints a PAT through the CLI as a
+  subprocess and exercises a Hono server.
+
+### Changed
+
+- All publishable packages bumped to `0.2.0`; examples and the Python
+  E2E harness are aligned to the same version.
+
+### Security
+
+This release extends the spec §14 non-negotiables (still enforced)
+with the v0.2 §12 additions:
+
+- Every new OAuth consumer (DCR, JWT Bearer, Client Credentials,
+  Token Exchange) enforces audience binding; tokens minted for MCP
+  are never forwarded upstream, and upstream-bound tokens never
+  satisfy MCP audience checks.
+- The upstream credential helper refuses to operate when
+  `authorizationServer` is in function form, avoiding cross-tenant
+  credential reuse in multi-tenant deployments.
+- Signed-handshake stdio uses `crypto.timingSafeEqual` for HMAC
+  comparison.
+- All durable stores hash PATs at rest with SHA-256 and perform
+  constant-time hash comparison; the Redis cache decorator never
+  caches plaintext PAT material.
+- Refresh-token rotation, family revocation, and bypass production
+  refusal carry over unchanged through the durable stores.
+
+### Public API
+
+- Zero exposed `any` types in the published surface of every v0.2
+  package.
+- `pnpm audit --audit-level high` exits clean.
+
+### Deferred (not in this release)
+
+Per spec §0: UI components for PAT management, gRPC adapter, a
+built-in authorization server (Mode B), cloud-vendor IAM helpers,
+token revocation broadcast, and anomaly-detection / rate-limiting
+middleware. v0.2 remains Mode A only.
+
 ## [0.1.0] — 2026-05-19
 
 First release. Implements the full v0.1 spec
@@ -72,4 +170,5 @@ multi-tenant authorization server, Dynamic Client Registration
 (RFC 6749 §4.4), token exchange (RFC 8693), production stdio support,
 and on-behalf-of upstream flows.
 
+[0.2.0]: https://github.com/omkmorendha/mcp-authkit/releases/tag/v0.2.0
 [0.1.0]: https://github.com/omkmorendha/mcp-authkit/releases/tag/v0.1.0
