@@ -46,7 +46,7 @@ jobs:
           version: "10.30.0"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           # Trusted Publishers needs Node >= 22.14 and npm >= 11.5.1.
           node-version: "22"
