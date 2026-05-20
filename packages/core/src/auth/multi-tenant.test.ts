@@ -344,11 +344,7 @@ describe("multi-tenant authorizationServer: per-request memoization", () => {
 // ---------------------------------------------------------------------------
 
 describe("multi-tenant authorizationServer: upstreamFor (#107)", () => {
-  function mintedJwt(
-    audience: string,
-    sub: string,
-    extra: Record<string, unknown> = {},
-  ): string {
+  function mintedJwt(audience: string, sub: string, extra: Record<string, unknown> = {}): string {
     const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")
     const payload = Buffer.from(JSON.stringify({ aud: audience, sub, ...extra })).toString(
       "base64url",
