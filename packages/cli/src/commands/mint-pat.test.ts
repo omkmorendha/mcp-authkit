@@ -79,6 +79,53 @@ describe("mintPatCommand", () => {
     }
   })
 
+  // Spec v0.2 §13: "CLI mint-pat with --user containing path-traversal
+  // characters is rejected." Cover the documented attack string and a
+  // representative set of shell/filesystem metacharacters.
+  it.each([
+    ["path traversal", "../../../etc/passwd"],
+    ["slash", "alice/bob"],
+    ["backslash", "alice\\bob"],
+    ["null byte", "alice\x00admin"],
+    ["space", "alice admin"],
+    ["semicolon", "alice;rm -rf /"],
+    ["newline", "alice\nbob"],
+    ["dollar", "$(whoami)"],
+    ["pipe", "alice|cat"],
+    ["double-dot only", ".."],
+  ])("rejects --user with %s", async (_label, user) => {
+    try {
+      await mintPatCommand({
+        configPath: resolve(fixtures, "with-memory-store.config.ts"),
+        user,
+        name: "demo",
+        scopes: ["echo:say"],
+        logger: silent,
+      })
+      throw new Error("expected throw")
+    } catch (err) {
+      expect(err).toBeInstanceOf(CliError)
+      expect((err as CliError).exitCode).toBe(ExitCode.userError)
+      expect((err as CliError).message).toContain("--user")
+    }
+  })
+
+  it("rejects --user longer than 256 characters", async () => {
+    try {
+      await mintPatCommand({
+        configPath: resolve(fixtures, "with-memory-store.config.ts"),
+        user: "a".repeat(257),
+        name: "demo",
+        scopes: ["echo:say"],
+        logger: silent,
+      })
+      throw new Error("expected throw")
+    } catch (err) {
+      expect(err).toBeInstanceOf(CliError)
+      expect((err as CliError).exitCode).toBe(ExitCode.userError)
+    }
+  })
+
   it("rejects empty scopes", async () => {
     try {
       await mintPatCommand({

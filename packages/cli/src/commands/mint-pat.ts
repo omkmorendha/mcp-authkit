@@ -32,6 +32,15 @@ export interface MintPatOptions {
 const DEFAULT_EXPIRY_DAYS = 90
 const MAX_EXPIRY_DAYS = 365 * 5
 
+// User identifiers are stored verbatim and shown back in audit logs and CLI
+// output. Reject path-traversal characters and other shell/filesystem
+// metacharacters so a hostile argv (e.g. `--user '../../../etc/passwd'`) can
+// never sneak through to the store or appear in operator-readable logs as a
+// path. Spec §13: "CLI mint-pat with --user containing path-traversal
+// characters is rejected."
+const USER_IDENTIFIER_PATTERN = /^[A-Za-z0-9._@+-]+$/
+const MAX_USER_IDENTIFIER_LENGTH = 256
+
 export async function mintPatCommand(options: MintPatOptions): Promise<void> {
   const user = options.user.trim()
   const name = options.name.trim()
@@ -39,6 +48,28 @@ export async function mintPatCommand(options: MintPatOptions): Promise<void> {
 
   if (user.length === 0) {
     throw new CliError(ExitCode.userError, "--user must be a non-empty string")
+  }
+  if (user.length > MAX_USER_IDENTIFIER_LENGTH) {
+    throw new CliError(
+      ExitCode.userError,
+      `--user must be ${MAX_USER_IDENTIFIER_LENGTH} characters or fewer`,
+    )
+  }
+  if (!USER_IDENTIFIER_PATTERN.test(user)) {
+    throw new CliError(
+      ExitCode.userError,
+      "--user contains disallowed characters; allowed: letters, digits, '.', '_', '@', '+', '-'",
+    )
+  }
+  // Even with only dot characters, sequences like "." or ".." resolve to a
+  // path segment on disk and would be a path-traversal signal if a future
+  // call site treats the identifier as a path. Reject any identifier that
+  // is composed entirely of dots.
+  if (/^\.+$/.test(user)) {
+    throw new CliError(
+      ExitCode.userError,
+      "--user must not be a path-traversal segment (e.g. '.', '..')",
+    )
   }
   if (name.length === 0) {
     throw new CliError(ExitCode.userError, "--name must be a non-empty string")
