@@ -100,6 +100,22 @@ export interface ExchangeTokenInput {
   subjectTokenType: SubjectTokenType
   /** Resource the minted token will address. Used for both `audience` and `resource` (RFC 8707). */
   audience: string
+  /**
+   * Expected `aud` claim on the subject token (spec v0.2 §8 hard rule:
+   * the subject token MUST have `aud == resourceIndicator`).
+   *
+   * When provided, the helper decodes the subject token (JWT shape) and
+   * rejects it BEFORE any HTTP call when the audience is missing or does
+   * not match. Opaque (non-JWT-shape) subject tokens fail closed when
+   * this field is set — there is no way to prove their audience without
+   * an introspection round-trip the caller has not configured.
+   *
+   * Leaving this undefined preserves the prior behavior (no pre-flight
+   * subject-audience check). Internal callers — notably the upstream
+   * credentials helper (§5.6) — always set this to the server
+   * `resourceIndicator`.
+   */
+  expectedSubjectAudience?: string
   /** Optional requested scopes. */
   scopes?: readonly string[]
   /** Optional actor token (RFC 8693 §2.1). */
@@ -140,6 +156,7 @@ export interface ExchangedToken {
 export type TokenExchangeErrorReason =
   | "input"
   | "request-too-large"
+  | "subject-audience"
   | "discovery"
   | "transport"
   | "as-error"
@@ -188,6 +205,12 @@ interface AsMetadata {
  */
 export async function exchangeToken(input: ExchangeTokenInput): Promise<ExchangedToken> {
   validateInput(input)
+  // Spec v0.2 §8: validate `aud == resourceIndicator` on the subject token
+  // BEFORE any network call. Skipped when the caller has not declared an
+  // expected audience (backwards-compat for direct callers).
+  if (input.expectedSubjectAudience !== undefined) {
+    validateSubjectAudience(input.subjectToken, input.expectedSubjectAudience)
+  }
 
   const doFetch: FetchLike = input.fetch ?? (globalThis.fetch as FetchLike)
   const timeoutMs = input.timeoutMs ?? 5_000
@@ -271,6 +294,17 @@ function validateInput(input: ExchangeTokenInput): void {
   if (typeof input.subjectTokenType !== "string" || input.subjectTokenType.length === 0) {
     throw new TokenExchangeError("input", "subjectTokenType is required")
   }
+  if (input.expectedSubjectAudience !== undefined) {
+    if (
+      typeof input.expectedSubjectAudience !== "string" ||
+      input.expectedSubjectAudience.length === 0
+    ) {
+      throw new TokenExchangeError(
+        "input",
+        "expectedSubjectAudience, if provided, must be a non-empty string",
+      )
+    }
+  }
   if (input.actorToken !== undefined) {
     if (typeof input.actorToken !== "string" || input.actorToken.length === 0) {
       throw new TokenExchangeError("input", "actorToken, if provided, must be a non-empty string")
@@ -289,6 +323,43 @@ function validateInput(input: ExchangeTokenInput): void {
     throw new TokenExchangeError(
       "request-too-large",
       `subject token exceeds ${TOKEN_EXCHANGE_BODY_LIMIT_BYTES}-byte request-body limit`,
+    )
+  }
+}
+
+/**
+ * Spec v0.2 §8 / §12: pre-flight audience check on the subject token.
+ *
+ * Decodes the subject token locally (JWT shape) and requires
+ * `aud == expectedAudience`. Opaque subject tokens fail closed — proving
+ * their audience would require introspection against the issuing AS which
+ * is not configured on this code path. Throws BEFORE any HTTP call so a
+ * wrong-audience token never touches the wire.
+ */
+function validateSubjectAudience(subjectToken: string, expectedAudience: string): void {
+  if (!isLikelyJwt(subjectToken)) {
+    throw new TokenExchangeError(
+      "subject-audience",
+      "subject token is not a JWT and cannot be audience-validated locally; refusing to exchange",
+    )
+  }
+  let payload: { aud?: unknown }
+  try {
+    payload = decodeJwt(subjectToken)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "decode failed"
+    throw new TokenExchangeError(
+      "subject-audience",
+      `subject token could not be decoded as JWT: ${message}`,
+    )
+  }
+  if (payload.aud === undefined) {
+    throw new TokenExchangeError("subject-audience", "subject token is missing the aud claim")
+  }
+  if (!audienceMatches(payload.aud, expectedAudience)) {
+    throw new TokenExchangeError(
+      "subject-audience",
+      "subject token audience does not match expected resource indicator",
     )
   }
 }

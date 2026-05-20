@@ -464,6 +464,221 @@ describe("exchangeToken", () => {
     })
   })
 
+  describe("subject-audience pre-flight (spec v0.2 §8)", () => {
+    const RESOURCE_INDICATOR = "https://mcp.example.test/"
+
+    it("rejects a JWT subject token whose aud does not match resourceIndicator BEFORE any network call", async () => {
+      const as = await startTestAS()
+      try {
+        const subjectToken = await as.signToken({
+          sub: "u",
+          aud: "https://attacker.example/",
+        })
+        const fetchMock = vi.fn<FetchLike>()
+        await expect(
+          exchangeToken({
+            issuer: ISSUER,
+            subjectToken,
+            subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+            audience: AUDIENCE,
+            expectedSubjectAudience: RESOURCE_INDICATOR,
+            tokenEndpoint: TOKEN_URL,
+            fetch: fetchMock,
+          }),
+        ).rejects.toMatchObject({
+          name: "TokenExchangeError",
+          reason: "subject-audience",
+        })
+        expect(fetchMock).not.toHaveBeenCalled()
+      } finally {
+        await as.close()
+      }
+    })
+
+    it("accepts a JWT subject token with matching string aud", async () => {
+      const as = await startTestAS()
+      try {
+        const subjectToken = await as.signToken({
+          sub: "u",
+          aud: RESOURCE_INDICATOR,
+        })
+        const minted = await as.signToken({ sub: "u", aud: AUDIENCE })
+        const fetchMock = routedFetch({
+          "/oauth/token": () =>
+            Promise.resolve(
+              mockResponse({
+                body: {
+                  access_token: minted,
+                  issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+                  expires_in: 60,
+                },
+              }),
+            ),
+        })
+        const result = await exchangeToken({
+          issuer: ISSUER,
+          subjectToken,
+          subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          audience: AUDIENCE,
+          expectedSubjectAudience: RESOURCE_INDICATOR,
+          tokenEndpoint: TOKEN_URL,
+          fetch: fetchMock,
+        })
+        expect(result.accessToken).toBe(minted)
+      } finally {
+        await as.close()
+      }
+    })
+
+    it("accepts a JWT subject token with matching aud array", async () => {
+      const as = await startTestAS()
+      try {
+        const subjectToken = await as.signToken({
+          sub: "u",
+          aud: ["https://other.example/", RESOURCE_INDICATOR],
+        })
+        const minted = await as.signToken({ sub: "u", aud: AUDIENCE })
+        const fetchMock = routedFetch({
+          "/oauth/token": () =>
+            Promise.resolve(
+              mockResponse({
+                body: {
+                  access_token: minted,
+                  issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+                  expires_in: 60,
+                },
+              }),
+            ),
+        })
+        const result = await exchangeToken({
+          issuer: ISSUER,
+          subjectToken,
+          subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          audience: AUDIENCE,
+          expectedSubjectAudience: RESOURCE_INDICATOR,
+          tokenEndpoint: TOKEN_URL,
+          fetch: fetchMock,
+        })
+        expect(result.accessToken).toBe(minted)
+      } finally {
+        await as.close()
+      }
+    })
+
+    it("rejects a JWT subject token missing the aud claim", async () => {
+      const as = await startTestAS()
+      try {
+        const subjectToken = await as.signToken({ sub: "u" })
+        const fetchMock = vi.fn<FetchLike>()
+        await expect(
+          exchangeToken({
+            issuer: ISSUER,
+            subjectToken,
+            subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+            audience: AUDIENCE,
+            expectedSubjectAudience: RESOURCE_INDICATOR,
+            tokenEndpoint: TOKEN_URL,
+            fetch: fetchMock,
+          }),
+        ).rejects.toMatchObject({
+          name: "TokenExchangeError",
+          reason: "subject-audience",
+        })
+        expect(fetchMock).not.toHaveBeenCalled()
+      } finally {
+        await as.close()
+      }
+    })
+
+    it("rejects an opaque (non-JWT-shape) subject token when expected audience is set", async () => {
+      const fetchMock = vi.fn<FetchLike>()
+      await expect(
+        exchangeToken({
+          issuer: ISSUER,
+          subjectToken: "opaque-token-value",
+          subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          audience: AUDIENCE,
+          expectedSubjectAudience: RESOURCE_INDICATOR,
+          tokenEndpoint: TOKEN_URL,
+          fetch: fetchMock,
+        }),
+      ).rejects.toMatchObject({
+        name: "TokenExchangeError",
+        reason: "subject-audience",
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it("rejects an undecodable JWT-shape subject token", async () => {
+      // Three dot-separated parts but the middle is not valid base64url JSON.
+      const fetchMock = vi.fn<FetchLike>()
+      await expect(
+        exchangeToken({
+          issuer: ISSUER,
+          subjectToken: "aaa.bbb.ccc",
+          subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          audience: AUDIENCE,
+          expectedSubjectAudience: RESOURCE_INDICATOR,
+          tokenEndpoint: TOKEN_URL,
+          fetch: fetchMock,
+        }),
+      ).rejects.toMatchObject({
+        name: "TokenExchangeError",
+        reason: "subject-audience",
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it("skips the pre-flight check when expectedSubjectAudience is undefined", async () => {
+      // Backwards-compat: callers that do not pass expectedSubjectAudience
+      // get the legacy behavior — opaque subject tokens are forwarded to the
+      // AS. The framework's upstreamFor always sets it.
+      const as = await startTestAS()
+      try {
+        const minted = await as.signToken({ sub: "u", aud: AUDIENCE })
+        const fetchMock = routedFetch({
+          "/oauth/token": () =>
+            Promise.resolve(
+              mockResponse({
+                body: {
+                  access_token: minted,
+                  issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+                  expires_in: 60,
+                },
+              }),
+            ),
+        })
+        const result = await exchangeToken({
+          issuer: ISSUER,
+          subjectToken: "opaque-no-aud-check",
+          subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          audience: AUDIENCE,
+          tokenEndpoint: TOKEN_URL,
+          fetch: fetchMock,
+        })
+        // Pre-flight did not short-circuit: opaque subject tokens are
+        // allowed through when no expected audience is declared.
+        expect(fetchMock).toHaveBeenCalled()
+        expect(result.accessToken).toBe(minted)
+      } finally {
+        await as.close()
+      }
+    })
+
+    it("rejects empty-string expectedSubjectAudience as input error", async () => {
+      await expect(
+        exchangeToken({
+          issuer: ISSUER,
+          subjectToken: "x.y.z",
+          subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          audience: AUDIENCE,
+          expectedSubjectAudience: "",
+          tokenEndpoint: TOKEN_URL,
+        }),
+      ).rejects.toMatchObject({ name: "TokenExchangeError", reason: "input" })
+    })
+  })
+
   describe("error mapping", () => {
     it("maps AS error responses to TokenExchangeError(as-error) with oauthError", async () => {
       const fetchMock = routedFetch({
