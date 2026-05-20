@@ -46,6 +46,10 @@
       "types": "./dist/stores/postgres.d.ts",
       "import": "./dist/stores/postgres.js"
     },
+    "./stores/sqlite": {
+      "types": "./dist/stores/sqlite.d.ts",
+      "import": "./dist/stores/sqlite.js"
+    },
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
@@ -97,6 +101,7 @@
     "mcp-authkit-config": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*",
     "mcp-authkit-store-postgres": "workspace:*",
+    "mcp-authkit-store-sqlite": "workspace:*",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },

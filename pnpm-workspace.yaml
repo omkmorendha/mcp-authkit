@@ -2,3 +2,12 @@ packages:
   - "packages/*"
   - "examples/*"
   - "e2e/*"
+
+# `better-sqlite3` is a native module shipped with prebuilt binaries; its
+# install script downloads the prebuild for the current platform. Without
+# this approval, pnpm v10 skips the script and `require("better-sqlite3")`
+# fails at runtime. The native binding is purely local — it does not run at
+# install time on consumers of `mcp-authkit-store-sqlite` (they declare the
+# peer dep themselves).
+onlyBuiltDependencies:
+  - better-sqlite3
