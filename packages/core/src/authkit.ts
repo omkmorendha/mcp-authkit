@@ -527,20 +527,26 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   // which implies an AS). Construction itself is cheap and is performed up
   // front so the LRU-fallback startup warning fires when the AS is present
   // but the store omits the optional cache methods.
+  //
+  // The function-form (multi-tenant) AS is intentionally excluded: upstreamFor
+  // assumes a single static issuer at construction time. Tenants resolved
+  // per-request would need a per-tenant token-exchange client and per-tenant
+  // cache keys, which is a separate feature (out of scope for v0.2 §5.6).
   const as = config.auth.authorizationServer
-  const upstreamForImpl = as
-    ? createUpstreamFor({
-        issuer: as.issuer,
-        tokenStore: config.auth.tokenStore,
-        ...(onEvent ? { audit: onEvent } : {}),
-        logger,
-      })
-    : null
+  const upstreamForImpl =
+    as && typeof as !== "function"
+      ? createUpstreamFor({
+          issuer: as.issuer,
+          tokenStore: config.auth.tokenStore,
+          ...(onEvent ? { audit: onEvent } : {}),
+          logger,
+        })
+      : null
 
   const upstreamFor = (audience: string) => {
     if (upstreamForImpl === null) {
       throw new Error(
-        "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
+        "upstreamFor: a static authorizationServer must be configured to mint upstream credentials (function-form / multi-tenant AS is not supported)",
       )
     }
     return (args: UpstreamForArgs): Promise<UpstreamCredential> => upstreamForImpl(audience)(args)
