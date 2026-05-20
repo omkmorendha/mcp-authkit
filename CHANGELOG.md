@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-20
+
+First release published via **npm Trusted Publishers** (OIDC, no
+`NPM_TOKEN` secret). Each package on npmjs.com now carries a Provenance
+attestation tying the tarball to a specific GitHub Actions run and
+commit SHA.
+
+### Changed
+
+- **CI / release** — `.github/workflows/release.yml` publishes every
+  public workspace package to npmjs.org on `v*` tag push, using OIDC.
+  `pnpm -r publish --access public --provenance --no-git-checks`. No
+  source changes; same artifact contents as 0.2.0 plus the provenance
+  attestation.
+- Dependabot dev-dep updates from the `types` group and the GitHub
+  Actions group (`actions/checkout`, `actions/setup-node`,
+  `actions/setup-python`). Test- and CI-only; no runtime surface
+  changed.
+
 ## [0.2.0] — 2026-05-20
 
 First npm release: all 9 packages published to the public registry on

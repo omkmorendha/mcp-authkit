@@ -1,6 +1,6 @@
 {
   "name": "mcp-authkit-config",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Config file loader and defineConfig() helper for mcp-authkit — typed identity function plus a bounded tsx-backed loader.",
   "license": "MIT",

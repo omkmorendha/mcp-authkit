@@ -1,6 +1,6 @@
 {
   "name": "mcp-authkit-store-memory",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "In-memory TokenStore for mcp-authkit — PATs, refresh tokens, and family revocation. For development and tests.",
   "license": "MIT",

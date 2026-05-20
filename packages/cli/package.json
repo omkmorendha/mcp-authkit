@@ -1,6 +1,6 @@
 {
   "name": "mcp-authkit-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Command-line companion for mcp-authkit — init, mint-pat, verify-config, jwks-fetch, gen-secret.",
   "license": "MIT",

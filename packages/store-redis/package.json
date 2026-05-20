@@ -1,6 +1,6 @@
 {
   "name": "mcp-authkit-store-redis",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Redis cache decorator for mcp-authkit TokenStore — caches read-mostly paths over an underlying store; not a primary store.",
   "license": "MIT",
