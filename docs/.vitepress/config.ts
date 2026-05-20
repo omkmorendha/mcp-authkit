@@ -22,10 +22,7 @@ export default defineConfig({
   // top-level repo artifacts that this site documents but doesn't render.
   // The relative links work for someone reading the markdown on GitHub;
   // VitePress just can't resolve them.
-  ignoreDeadLinks: [
-    /examples\//,
-    /CHANGELOG/,
-  ],
+  ignoreDeadLinks: [/examples\//, /CHANGELOG/],
 
   head: [
     ["link", { rel: "icon", href: "/mcp-authkit/favicon.svg", type: "image/svg+xml" }],
@@ -33,10 +30,14 @@ export default defineConfig({
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:site_name", content: "mcp-authkit" }],
     ["meta", { property: "og:title", content: "mcp-authkit — OAuth + PAT for MCP servers" }],
-    ["meta", {
-      property: "og:description",
-      content: "Validate OAuth 2.1 tokens, mint Personal Access Tokens, and enforce per-tool scopes — without wiring auth into every handler.",
-    }],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          "Validate OAuth 2.1 tokens, mint Personal Access Tokens, and enforce per-tool scopes — without wiring auth into every handler.",
+      },
+    ],
   ],
 
   themeConfig: {
@@ -50,7 +51,10 @@ export default defineConfig({
       {
         text: `v0.2.1`,
         items: [
-          { text: "Changelog", link: "https://github.com/omkmorendha/mcp-authkit/blob/main/CHANGELOG.md" },
+          {
+            text: "Changelog",
+            link: "https://github.com/omkmorendha/mcp-authkit/blob/main/CHANGELOG.md",
+          },
           { text: "Releases", link: "https://github.com/omkmorendha/mcp-authkit/releases" },
           { text: "npm: mcp-authkit", link: "https://www.npmjs.com/package/mcp-authkit" },
         ],
