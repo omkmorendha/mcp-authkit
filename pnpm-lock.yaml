@@ -92,6 +92,28 @@ importers:
         specifier: ^4.19.0
         version: 4.22.3
 
+  examples/stdio:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      mcp-authkit:
+        specifier: workspace:*
+        version: link:../../packages/core
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.0
+        version: 25.9.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.3
+
   packages/adapter-express:
     devDependencies:
       '@modelcontextprotocol/sdk':
