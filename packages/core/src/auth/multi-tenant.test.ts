@@ -339,6 +339,169 @@ describe("multi-tenant authorizationServer: per-request memoization", () => {
 // Static object form is unchanged
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// upstreamFor with function-form AS (#107)
+// ---------------------------------------------------------------------------
+
+describe("multi-tenant authorizationServer: upstreamFor (#107)", () => {
+  function mintedJwt(
+    audience: string,
+    sub: string,
+    extra: Record<string, unknown> = {},
+  ): string {
+    const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")
+    const payload = Buffer.from(JSON.stringify({ aud: audience, sub, ...extra })).toString(
+      "base64url",
+    )
+    return `${header}.${payload}.sig`
+  }
+
+  function stubFetch(
+    issuersToTokenEndpoints: Record<string, string>,
+    onTokenExchange: (issuer: string, body: string) => string,
+  ): { restore: () => void; calls: { issuer: string; body: string }[] } {
+    const calls: { issuer: string; body: string }[] = []
+    const origFetch = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = typeof input === "string" ? input : input.toString()
+      for (const [issuer, tokenEndpoint] of Object.entries(issuersToTokenEndpoints)) {
+        if (u === `${issuer}/.well-known/oauth-authorization-server`) {
+          return new Response(JSON.stringify({ issuer, token_endpoint: tokenEndpoint }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        }
+        if (u === tokenEndpoint) {
+          const body = typeof init?.body === "string" ? init.body : ""
+          calls.push({ issuer, body })
+          return new Response(onTokenExchange(issuer, body), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        }
+      }
+      throw new Error(`unexpected fetch: ${u}`)
+    }) as typeof globalThis.fetch
+    return {
+      restore: () => {
+        globalThis.fetch = origFetch
+      },
+      calls,
+    }
+  }
+
+  it("isolates upstream cache by resolved issuer (no cross-tenant collision)", async () => {
+    const ISS_A = "https://tenant-a.example.test"
+    const ISS_B = "https://tenant-b.example.test"
+    const UPSTREAM = "https://upstream.example.test/"
+
+    const stub = stubFetch(
+      {
+        [ISS_A]: `${ISS_A}/token`,
+        [ISS_B]: `${ISS_B}/token`,
+      },
+      (issuer) =>
+        JSON.stringify({
+          access_token: mintedJwt(UPSTREAM, `sub-via-${issuer}`),
+          token_type: "Bearer",
+          issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+          expires_in: 60,
+        }),
+    )
+
+    try {
+      const resolver: AuthorizationServerResolver = async (sel) => {
+        if (sel.tenantId === "a") return { issuer: ISS_A, jwksUri: `${ISS_A}/jwks` }
+        return { issuer: ISS_B, jwksUri: `${ISS_B}/jwks` }
+      }
+      const kit = createAuthKit(baseConfig(resolver))
+      const fetcher = kit.upstreamFor(UPSTREAM)
+
+      // Subject tokens must be JWT-shaped with aud == resourceIndicator
+      // because spec v0.2 §8 (PR #110) audience-validates the subject token
+      // locally BEFORE any AS request.
+      const subjA = mintedJwt(AUDIENCE, "u1", { iss: ISS_A })
+      const subjB = mintedJwt(AUDIENCE, "u1", { iss: ISS_B })
+      const authA = {
+        subject: "u1",
+        tokenType: "oauth" as const,
+        tokenId: "jti-a",
+        scopes: ["read"] as readonly string[],
+        expiresAt: new Date(Date.now() + 60_000),
+        raw: { access_token: subjA, iss: ISS_A, sub: "u1" },
+      }
+      const authB = {
+        subject: "u1",
+        tokenType: "oauth" as const,
+        tokenId: "jti-b",
+        scopes: ["read"] as readonly string[],
+        expiresAt: new Date(Date.now() + 60_000),
+        raw: { access_token: subjB, iss: ISS_B, sub: "u1" },
+      }
+
+      const a1 = await fetcher({ auth: authA, scopes: ["read"] })
+      const b1 = await fetcher({ auth: authB, scopes: ["read"] })
+      const a2 = await fetcher({ auth: authA, scopes: ["read"] })
+      const b2 = await fetcher({ auth: authB, scopes: ["read"] })
+
+      // Two distinct token exchanges (one per tenant), then both cached.
+      expect(stub.calls.length).toBe(2)
+      const seenIssuers = new Set(stub.calls.map((c) => c.issuer))
+      expect(seenIssuers).toEqual(new Set([ISS_A, ISS_B]))
+
+      // Tenant A's cached entry stays bound to tenant A's minted token, and
+      // likewise for B — no cross-tenant cache poisoning.
+      expect(a2.token).toBe(a1.token)
+      expect(b2.token).toBe(b1.token)
+      expect(a1.token).not.toBe(b1.token)
+    } finally {
+      stub.restore()
+    }
+  })
+
+  it("refuses upstreamFor with a clear error for PAT tokenType", async () => {
+    const resolver: AuthorizationServerResolver = async () => ({
+      issuer: "https://tenant.example.test",
+      jwksUri: "https://tenant.example.test/jwks",
+    })
+    const kit = createAuthKit(baseConfig(resolver))
+    await expect(
+      kit.upstreamFor("https://upstream.example.test/")({
+        auth: {
+          subject: "u1",
+          tokenType: "pat",
+          tokenId: "pat-1",
+          scopes: [],
+          expiresAt: null,
+          raw: {},
+        },
+        scopes: [],
+      }),
+    ).rejects.toThrow(/tokenType=pat/)
+  })
+
+  it("refuses upstreamFor when auth.raw.iss is absent (e.g. introspection without iss)", async () => {
+    const resolver: AuthorizationServerResolver = async () => ({
+      issuer: "https://tenant.example.test",
+      jwksUri: "https://tenant.example.test/jwks",
+    })
+    const kit = createAuthKit(baseConfig(resolver))
+    await expect(
+      kit.upstreamFor("https://upstream.example.test/")({
+        auth: {
+          subject: "u1",
+          tokenType: "oauth",
+          tokenId: "jti",
+          scopes: [],
+          expiresAt: new Date(Date.now() + 60_000),
+          raw: { access_token: "subj", sub: "u1" }, // RFC 7662 leaves iss optional
+        },
+        scopes: [],
+      }),
+    ).rejects.toThrow(/auth\.raw\.iss/)
+  })
+})
+
 describe("multi-tenant authorizationServer: static object form unchanged", () => {
   let as: TestAS
   let rig: Rig

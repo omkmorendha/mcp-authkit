@@ -413,6 +413,41 @@ describe("createUpstreamFor", () => {
       }
     })
 
+    it("rejects PAT tokenType with a clear message naming the tokenType (#107)", async () => {
+      const { store } = buildFakeStore({ withCacheMethods: true })
+      const exchange = mockedExchange()
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
+      await expect(
+        fetcher({
+          auth: buildAuth({ tokenType: "pat", raw: { access_token: "x" } }),
+          scopes: ["read"],
+        }),
+      ).rejects.toThrow(/tokenType=pat/)
+      expect(exchange).not.toHaveBeenCalled()
+    })
+
+    it("rejects static tokenType with a clear message (#107)", async () => {
+      const { store } = buildFakeStore({ withCacheMethods: true })
+      const exchange = mockedExchange()
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
+      await expect(
+        fetcher({
+          auth: buildAuth({ tokenType: "static", raw: { access_token: "x" } }),
+          scopes: ["read"],
+        }),
+      ).rejects.toThrow(/tokenType=static/)
+    })
+
     it("rejects empty-string audiences eagerly", () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const factory = createUpstreamFor({
@@ -471,6 +506,103 @@ describe("createUpstreamFor — subject-audience enforcement (spec v0.2 §8)", (
     const event = audit.mock.calls[0]?.[0]
     expect(event?.type).toBe("upstream.exchange_reject")
     expect(event?.detail.reason).toBe("token-exchange:subject-audience")
+  })
+})
+
+describe("createUpstreamFor: function-form issuer resolver (#107)", () => {
+  it("forwards the resolver-returned issuer to exchangeToken", async () => {
+    const { store } = buildFakeStore({ withCacheMethods: true })
+    const exchange = mockedExchange()
+    const resolver = vi.fn((auth: AuthContext) => `${ISSUER}#${auth.subject}`)
+    const fetcher = createUpstreamFor({
+      issuer: resolver,
+      resourceIndicator: RESOURCE_INDICATOR,
+      tokenStore: store,
+      exchange,
+    })(AUDIENCE)
+
+    await fetcher({ auth: buildAuth({ subject: "alice" }), scopes: ["read"] })
+
+    expect(resolver).toHaveBeenCalledTimes(1)
+    const call = exchange.mock.calls[0]?.[0]
+    expect(call?.issuer).toBe(`${ISSUER}#alice`)
+  })
+
+  it("isolates the cache by resolved issuer (no cross-tenant collision)", async () => {
+    // Two AuthContexts with identical subject/audience/scopes but DIFFERENT
+    // resolved issuers must produce two distinct cache entries — otherwise
+    // tenant A could be handed tenant B's minted token.
+    const { store } = buildFakeStore({ withCacheMethods: true })
+    const exchange = mockedExchange((input) => ({
+      accessToken: `minted-for-${input.subjectToken}-via-${input.audience}`,
+      expiresAt: new Date(Date.now() + 60_000),
+      scopes: input.scopes ?? [],
+    }))
+    const resolver = (auth: AuthContext) => {
+      const raw = auth.raw as { iss?: string }
+      return raw.iss ?? ""
+    }
+    const fetcher = createUpstreamFor({
+      issuer: resolver,
+      resourceIndicator: RESOURCE_INDICATOR,
+      tokenStore: store,
+      exchange,
+    })(AUDIENCE)
+
+    const authA = buildAuth({
+      raw: { access_token: "subj", iss: "https://tenant-a.example.test" },
+    })
+    const authB = buildAuth({
+      raw: { access_token: "subj", iss: "https://tenant-b.example.test" },
+    })
+
+    await fetcher({ auth: authA, scopes: ["read"] })
+    await fetcher({ auth: authB, scopes: ["read"] })
+    await fetcher({ auth: authA, scopes: ["read"] }) // hits cache
+    await fetcher({ auth: authB, scopes: ["read"] }) // hits cache
+
+    // Two distinct issuers + identical (subject, audience, scopes) =>
+    // two exchange calls, then both calls served from cache.
+    expect(exchange).toHaveBeenCalledTimes(2)
+    const issuers = exchange.mock.calls.map((c) => c[0].issuer)
+    expect(new Set(issuers)).toEqual(
+      new Set(["https://tenant-a.example.test", "https://tenant-b.example.test"]),
+    )
+  })
+
+  it("surfaces a typed error when the resolver throws", async () => {
+    const { store } = buildFakeStore({ withCacheMethods: true })
+    const exchange = mockedExchange()
+    const resolver = () => {
+      throw new Error("tenant lookup down")
+    }
+    const fetcher = createUpstreamFor({
+      issuer: resolver,
+      resourceIndicator: RESOURCE_INDICATOR,
+      tokenStore: store,
+      exchange,
+    })(AUDIENCE)
+
+    await expect(fetcher({ auth: buildAuth(), scopes: ["read"] })).rejects.toThrow(
+      /issuer resolver threw: tenant lookup down/,
+    )
+    expect(exchange).not.toHaveBeenCalled()
+  })
+
+  it("surfaces a typed error when the resolver returns an empty string", async () => {
+    const { store } = buildFakeStore({ withCacheMethods: true })
+    const exchange = mockedExchange()
+    const fetcher = createUpstreamFor({
+      issuer: () => "",
+      resourceIndicator: RESOURCE_INDICATOR,
+      tokenStore: store,
+      exchange,
+    })(AUDIENCE)
+
+    await expect(fetcher({ auth: buildAuth(), scopes: ["read"] })).rejects.toThrow(
+      /empty\/invalid issuer/,
+    )
+    expect(exchange).not.toHaveBeenCalled()
   })
 })
 

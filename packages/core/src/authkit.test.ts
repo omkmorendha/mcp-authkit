@@ -346,7 +346,10 @@ describe("createAuthKit", () => {
     ).not.toThrow()
   })
 
-  it("upstreamFor refuses with a clear error when authorizationServer is in function form", () => {
+  it("upstreamFor is available when authorizationServer is in function form (#107)", () => {
+    // Function-form AS: issuer is resolved per call from auth.raw.iss.
+    // The helper must construct without throwing and must return a fetcher
+    // closure for any non-empty audience.
     const authkit = createAuthKit(
       makeConfig({
         auth: {
@@ -358,9 +361,8 @@ describe("createAuthKit", () => {
         },
       }),
     )
-    expect(() => authkit.upstreamFor("https://upstream.example.test/")).toThrow(
-      /function-form authorizationServer is not yet supported/,
-    )
+    const fetcher = authkit.upstreamFor("https://upstream.example.test/")
+    expect(typeof fetcher).toBe("function")
   })
 })
 
@@ -853,20 +855,153 @@ describe("upstreamFor with function-form authorizationServer", () => {
     expect(() => createAuthKit(config)).not.toThrow()
   })
 
-  it("rejects upstreamFor calls at the call site when AS is the function form", () => {
-    // The function-form AS resolves per request, but upstreamFor (spec §5.6)
-    // wants a single static issuer at construction time. The helper refuses
-    // cleanly at call time so registerTool stays usable.
+  it("mints an upstream credential for an OAuth auth context (#107)", async () => {
+    // Function-form AS resolves the issuer per call from auth.raw.iss.
+    // We stub fetch on the token endpoint to keep the test hermetic.
     const config = makeConfig({
       auth: {
         ...makeConfig().auth,
         authorizationServer: async () => ({
-          issuer: ISSUER_PLACEHOLDER,
-          jwksUri: `${ISSUER_PLACEHOLDER}/.well-known/jwks.json`,
+          issuer: "https://tenant-a.example.test",
+          jwksUri: "https://tenant-a.example.test/.well-known/jwks.json",
         }),
       },
     })
     const kit = createAuthKit(config)
-    expect(() => kit.upstreamFor("https://upstream.example.test/")).toThrow(/function-form/)
+
+    // The default exchange path will try RFC 8414 discovery + token endpoint.
+    // Stub fetch to return a discovery doc + a minted token; spec compliance
+    // of the exchange itself is covered by token-exchange's own tests.
+    const origFetch = globalThis.fetch
+    const fetchCalls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const u = typeof input === "string" ? input : input.toString()
+      fetchCalls.push(u)
+      if (u.endsWith("/.well-known/oauth-authorization-server")) {
+        return new Response(
+          JSON.stringify({
+            issuer: "https://tenant-a.example.test",
+            token_endpoint: "https://tenant-a.example.test/token",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )
+      }
+      if (u === "https://tenant-a.example.test/token") {
+        // JWT-shaped minted token with aud == requested audience. The
+        // exchange validator decodes it locally and checks aud (spec §8);
+        // an opaque token would require an introspection endpoint.
+        const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString(
+          "base64url",
+        )
+        const payload = Buffer.from(
+          JSON.stringify({ aud: "https://upstream.example.test/", sub: "u1" }),
+        ).toString("base64url")
+        // Three non-empty segments (compact JWS shape); decode-only validator
+        // doesn't verify the signature.
+        const minted = `${header}.${payload}.sig`
+        return new Response(
+          JSON.stringify({
+            access_token: minted,
+            token_type: "Bearer",
+            issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+            expires_in: 60,
+            scope: "upstream:read",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )
+      }
+      throw new Error(`unexpected fetch: ${u}`)
+    }) as typeof globalThis.fetch
+
+    try {
+      const out = await kit.upstreamFor("https://upstream.example.test/")({
+        auth: {
+          subject: "u1",
+          tokenType: "oauth",
+          tokenId: "jti",
+          scopes: ["upstream:read"],
+          expiresAt: new Date(Date.now() + 60_000),
+          // Subject token must be JWT-shaped with aud == resourceIndicator
+          // (AUDIENCE) — spec v0.2 §8 enforces this locally before any AS
+          // call (PR #110).
+          raw: {
+            access_token: (() => {
+              const h = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString(
+                "base64url",
+              )
+              const p = Buffer.from(JSON.stringify({ aud: AUDIENCE, sub: "u1" })).toString(
+                "base64url",
+              )
+              return `${h}.${p}.sig`
+            })(),
+            iss: "https://tenant-a.example.test",
+            sub: "u1",
+          },
+        },
+        scopes: ["upstream:read"],
+      })
+      expect(out.token).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
+      // Discovery + token endpoint were both hit.
+      expect(fetchCalls.some((u) => u.endsWith("/.well-known/oauth-authorization-server"))).toBe(
+        true,
+      )
+      expect(fetchCalls).toContain("https://tenant-a.example.test/token")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  it("refuses with a clear error when auth.raw.iss is missing (#107)", async () => {
+    const kit = createAuthKit(
+      makeConfig({
+        auth: {
+          ...makeConfig().auth,
+          authorizationServer: async () => ({
+            issuer: ISSUER_PLACEHOLDER,
+            jwksUri: `${ISSUER_PLACEHOLDER}/.well-known/jwks.json`,
+          }),
+        },
+      }),
+    )
+    await expect(
+      kit.upstreamFor("https://upstream.example.test/")({
+        auth: {
+          subject: "u1",
+          tokenType: "oauth",
+          tokenId: "jti",
+          scopes: [],
+          expiresAt: new Date(Date.now() + 60_000),
+          raw: { access_token: "subj", sub: "u1" }, // no `iss`
+        },
+        scopes: [],
+      }),
+    ).rejects.toThrow(/auth\.raw\.iss/)
+  })
+
+  it("refuses PAT tokenType in function-form deployments with a clear error (#107)", async () => {
+    const kit = createAuthKit(
+      makeConfig({
+        auth: {
+          ...makeConfig().auth,
+          authorizationServer: async () => ({
+            issuer: ISSUER_PLACEHOLDER,
+            jwksUri: `${ISSUER_PLACEHOLDER}/.well-known/jwks.json`,
+          }),
+        },
+      }),
+    )
+    await expect(
+      kit.upstreamFor("https://upstream.example.test/")({
+        auth: {
+          subject: "u1",
+          tokenType: "pat",
+          tokenId: "pat-1",
+          scopes: [],
+          expiresAt: null,
+          raw: {},
+        },
+        scopes: [],
+      }),
+    ).rejects.toThrow(/tokenType=pat/)
   })
 })
