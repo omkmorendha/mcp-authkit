@@ -42,7 +42,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "commander": "^12.1.0",
+    "commander": "^14.0.3",
     "jose": "^6.2.3",
     "mcp-authkit-config": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*"
