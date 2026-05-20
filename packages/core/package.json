@@ -66,6 +66,10 @@
       "types": "./dist/oauth/client-credentials.d.ts",
       "import": "./dist/oauth/client-credentials.js"
     },
+    "./oauth/dcr": {
+      "types": "./dist/oauth/dcr.d.ts",
+      "import": "./dist/oauth/dcr.js"
+    },
     "./upstream": {
       "types": "./dist/upstream/index.d.ts",
       "import": "./dist/upstream/index.js"
