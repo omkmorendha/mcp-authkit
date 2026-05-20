@@ -60,10 +60,17 @@ type CallSpecificExchangeInput = Pick<
 /**
  * Wiring required to mint upstream credentials. Constructed by `createAuthKit`
  * from the consumer's `AuthKitConfig`; not part of the public API.
+ *
+ * `issuer` may be a fixed string (static-AS deployments) or a function that
+ * resolves the issuer from the per-call `AuthContext` (function-form AS,
+ * spec v0.2 §5.1). The resolver is invoked at credential-mint time and its
+ * return value is used both as the `exchangeToken` `issuer` argument and
+ * as part of the cache key — so two tenants minting for the same upstream
+ * audience never collide (spec v0.2 §7, §8).
  */
 export interface UpstreamHelperConfig {
   /** Issuer used for RFC 8414 discovery when minting tokens. */
-  issuer: string
+  issuer: string | ((auth: AuthContext) => string)
   /**
    * Server resource indicator (spec v0.2 §8). Passed to `exchangeToken`
    * as `expectedSubjectAudience` on every call so the helper rejects
@@ -136,8 +143,9 @@ export function createUpstreamFor(
       warnFallbackOnce()
       const { auth, scopes } = args
       const subjectToken = extractSubjectToken(auth)
+      const issuer = resolveIssuer(helperConfig.issuer, auth)
       const sortedScopes = [...scopes].sort()
-      const cacheKey = computeCacheKey(auth.subject, audience, sortedScopes)
+      const cacheKey = computeCacheKey(issuer, auth.subject, audience, sortedScopes)
       const now = Date.now()
 
       const cached = await readCache({
@@ -151,7 +159,7 @@ export function createUpstreamFor(
       }
 
       const exchangeInput: CallSpecificExchangeInput & Pick<ExchangeTokenInput, "issuer"> = {
-        issuer: helperConfig.issuer,
+        issuer,
         subjectToken,
         subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
         audience,
@@ -218,6 +226,14 @@ export function createUpstreamFor(
 // ---------------------------------------------------------------------------
 
 function extractSubjectToken(auth: AuthContext): string {
+  // PAT, static-token, and bypass auth carry no OAuth subject token, so
+  // RFC 8693 token exchange is structurally impossible. Refuse with a clear
+  // message naming the tokenType rather than the generic "missing" path.
+  if (auth.tokenType !== "oauth") {
+    throw new Error(
+      `upstreamFor: tokenType=${auth.tokenType} cannot perform RFC 8693 token exchange; upstream credentials require an OAuth-validated AuthContext`,
+    )
+  }
   const raw = auth.raw as Record<string, unknown> | undefined
   const candidate = raw?.access_token
   if (typeof candidate !== "string" || candidate.length === 0) {
@@ -230,12 +246,45 @@ function extractSubjectToken(auth: AuthContext): string {
   return candidate
 }
 
+/**
+ * Resolve the issuer used for this exchange. Static-AS deployments hand a
+ * fixed string at construction; function-form AS deployments hand a resolver
+ * that reads `auth.raw.iss` (populated by both the JWT and introspection
+ * validators — see `auth/jwt.ts` and `auth/introspection.ts`). The helper
+ * fails closed when the resolver throws or yields an empty string; spec
+ * §8 forbids guessing here.
+ */
+function resolveIssuer(
+  source: string | ((auth: AuthContext) => string),
+  auth: AuthContext,
+): string {
+  if (typeof source === "string") return source
+  let resolved: string
+  try {
+    resolved = source(auth)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`upstreamFor: issuer resolver threw: ${message}`)
+  }
+  if (typeof resolved !== "string" || resolved.length === 0) {
+    throw new Error(
+      "upstreamFor: issuer resolver returned an empty/invalid issuer; cannot perform token exchange (token-type=" +
+        auth.tokenType +
+        ")",
+    )
+  }
+  return resolved
+}
+
 function computeCacheKey(
+  issuer: string,
   subject: string,
   audience: string,
   sortedScopes: readonly string[],
 ): string {
   const hash = createHash("sha256")
+  hash.update(issuer)
+  hash.update("\n")
   hash.update(subject)
   hash.update("\n")
   hash.update(audience)
