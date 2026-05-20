@@ -528,14 +528,18 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   // front so the LRU-fallback startup warning fires when the AS is present
   // but the store omits the optional cache methods.
   const as = config.auth.authorizationServer
-  const upstreamForImpl = as
-    ? createUpstreamFor({
-        issuer: as.issuer,
-        tokenStore: config.auth.tokenStore,
-        ...(onEvent ? { audit: onEvent } : {}),
-        logger,
-      })
-    : null
+  // Multi-tenant resolver form (function) can't be reduced to a single issuer
+  // at construction; upstreamFor is unavailable for those deployments until
+  // we have a per-tenant variant. Static-object form keeps the v0.1 path.
+  const upstreamForImpl =
+    as && typeof as !== "function"
+      ? createUpstreamFor({
+          issuer: as.issuer,
+          tokenStore: config.auth.tokenStore,
+          ...(onEvent ? { audit: onEvent } : {}),
+          logger,
+        })
+      : null
 
   const upstreamFor = (audience: string) => {
     if (upstreamForImpl === null) {
