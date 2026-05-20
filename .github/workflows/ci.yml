@@ -20,6 +20,28 @@ jobs:
             required: false
     continue-on-error: ${{ !matrix.required }}
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # CI-only Postgres bound to localhost inside the runner using
+          # trust authentication — no password to manage or leak.
+          # Acceptable here because the container is unreachable from
+          # outside the runner.
+          POSTGRES_USER: authkit
+          POSTGRES_DB: authkit_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U authkit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      INTEGRATION_DATABASE_URL: postgres://authkit@localhost:5432/authkit_test
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4

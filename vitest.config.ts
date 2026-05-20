@@ -11,6 +11,10 @@ export default defineConfig({
       "mcp-authkit-config": new URL("./packages/config/src/index.ts", import.meta.url).pathname,
       "mcp-authkit-store-memory": new URL("./packages/store-memory/src/index.ts", import.meta.url)
         .pathname,
+      "mcp-authkit-store-postgres": new URL(
+        "./packages/store-postgres/src/index.ts",
+        import.meta.url,
+      ).pathname,
     },
   },
   test: {

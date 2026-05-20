@@ -1,0 +1,30 @@
+# Local-dev Postgres for mcp-authkit-store-postgres integration tests.
+#
+# Usage:
+#   docker compose -f packages/store-postgres/docker-compose.yml up -d
+#   INTEGRATION_DATABASE_URL=postgres://authkit@localhost:5432/authkit_test \
+#     pnpm --filter mcp-authkit-store-postgres test
+#
+# CI does NOT use this file — it uses GitHub Actions `services:` (see
+# .github/workflows/ci.yml). This file exists only so contributors can
+# run the integration suite locally without rebuilding the image.
+#
+# The container binds to localhost and uses POSTGRES_HOST_AUTH_METHOD=trust
+# — there is no password to leak. Do not change this; the tests are
+# explicitly local-only.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: mcp-authkit-postgres
+    environment:
+      POSTGRES_USER: authkit
+      POSTGRES_DB: authkit_test
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authkit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
