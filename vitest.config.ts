@@ -7,6 +7,7 @@ export default defineConfig({
         "./packages/adapter-express/src/index.ts",
         import.meta.url,
       ).pathname,
+      "mcp-authkit-cli": new URL("./packages/cli/src/index.ts", import.meta.url).pathname,
       "mcp-authkit-config": new URL("./packages/config/src/index.ts", import.meta.url).pathname,
       "mcp-authkit-store-memory": new URL("./packages/store-memory/src/index.ts", import.meta.url)
         .pathname,

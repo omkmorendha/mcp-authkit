@@ -113,6 +113,25 @@ importers:
         specifier: ^7.0.0
         version: 7.2.2
 
+  packages/cli:
+    dependencies:
+      commander:
+        specifier: ^12.1.0
+        version: 12.1.0
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
+      mcp-authkit-config:
+        specifier: workspace:*
+        version: link:../config
+      mcp-authkit-store-memory:
+        specifier: workspace:*
+        version: link:../store-memory
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.0
+        version: 25.9.0
+
   packages/config:
     dependencies:
       mcp-authkit-store-memory:
@@ -140,6 +159,9 @@ importers:
       mcp-authkit-adapter-express:
         specifier: workspace:*
         version: link:../adapter-express
+      mcp-authkit-cli:
+        specifier: workspace:*
+        version: link:../cli
       mcp-authkit-config:
         specifier: workspace:*
         version: link:../config
@@ -870,6 +892,10 @@ packages:
   combined-stream@1.0.8:
     resolution: {integrity: sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==}
     engines: {node: '>= 0.8'}
+
+  commander@12.1.0:
+    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
 
   component-emitter@1.3.1:
     resolution: {integrity: sha512-T0+barUSQRTUQASh8bx02dl+DhF54GtIDY13Y3m9oWTklKbb3Wv974meRpeZ3lp1JpLVECWWNHC4vaG2XHXouQ==}
@@ -2452,6 +2478,8 @@ snapshots:
   combined-stream@1.0.8:
     dependencies:
       delayed-stream: 1.0.0
+
+  commander@12.1.0: {}
 
   component-emitter@1.3.1: {}
 

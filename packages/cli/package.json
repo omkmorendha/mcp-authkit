@@ -1,0 +1,53 @@
+{
+  "name": "mcp-authkit-cli",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Command-line companion for mcp-authkit — init, mint-pat, verify-config, jwks-fetch, gen-secret.",
+  "license": "MIT",
+  "author": "Om Morendha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omkmorendha/mcp-authkit.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/omkmorendha/mcp-authkit#readme",
+  "bugs": {
+    "url": "https://github.com/omkmorendha/mcp-authkit/issues"
+  },
+  "keywords": [
+    "mcp",
+    "oauth",
+    "authkit",
+    "cli",
+    "model-context-protocol"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mcp-authkit": "./dist/bin/mcp-authkit.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "jose": "^6.2.3",
+    "mcp-authkit-config": "workspace:*",
+    "mcp-authkit-store-memory": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0"
+  }
+}
