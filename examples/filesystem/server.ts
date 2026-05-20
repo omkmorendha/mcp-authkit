@@ -16,7 +16,12 @@ import pino from "pino"
 import { z } from "zod"
 
 const log = pino({ name: "filesystem-example" })
-const port = Number.parseInt(process.env.PORT ?? "3000", 10)
+
+function parsePort(value: string | undefined, fallback = 3000): number {
+  const parsed = Number.parseInt(value ?? "", 10)
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback
+}
+const port = parsePort(process.env.PORT)
 
 const config = await loadConfig("./mcp-authkit.config.ts")
 
