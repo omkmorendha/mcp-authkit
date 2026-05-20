@@ -146,7 +146,7 @@ both populate from the validated token — and uses that issuer for:
   same upstream audience never collide).
 
 ```ts
-import { onBehalfOf } from "mcp-authkit"
+import { onBehalfOf } from "mcp-authkit/upstream"
 
 authkit.registerTool(mcp, {
   name: "search-upstream",
@@ -160,7 +160,8 @@ authkit.registerTool(mcp, {
       audience: "https://upstream.example.com",
       scopes: ["upstream:read"],
     })
-    const res = await fetch(`https://upstream.example.com/search?q=${input.q}`, {
+    const url = `https://upstream.example.com/search?q=${encodeURIComponent(input.q)}`
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${cred.token}` },
     })
     // ...

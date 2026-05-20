@@ -431,6 +431,24 @@ describe("createUpstreamFor", () => {
       expect(exchange).not.toHaveBeenCalled()
     })
 
+    it("rejects bypass tokenType with a clear message (#107)", async () => {
+      const { store } = buildFakeStore({ withCacheMethods: true })
+      const exchange = mockedExchange()
+      const fetcher = createUpstreamFor({
+        issuer: ISSUER,
+        resourceIndicator: RESOURCE_INDICATOR,
+        tokenStore: store,
+        exchange,
+      })(AUDIENCE)
+      await expect(
+        fetcher({
+          auth: buildAuth({ tokenType: "bypass", raw: { access_token: "x" } }),
+          scopes: ["read"],
+        }),
+      ).rejects.toThrow(/tokenType=bypass/)
+      expect(exchange).not.toHaveBeenCalled()
+    })
+
     it("rejects static tokenType with a clear message (#107)", async () => {
       const { store } = buildFakeStore({ withCacheMethods: true })
       const exchange = mockedExchange()
