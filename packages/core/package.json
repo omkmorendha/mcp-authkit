@@ -34,6 +34,10 @@
       "types": "./dist/stores/memory.d.ts",
       "import": "./dist/stores/memory.js"
     },
+    "./stores/postgres": {
+      "types": "./dist/stores/postgres.d.ts",
+      "import": "./dist/stores/postgres.js"
+    },
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
@@ -53,6 +57,7 @@
     "jose": "^6.2.3",
     "mcp-authkit-adapter-express": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*",
+    "mcp-authkit-store-postgres": "workspace:*",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },

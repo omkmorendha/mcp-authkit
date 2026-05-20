@@ -1,0 +1,52 @@
+{
+  "name": "mcp-authkit-store-postgres",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Postgres TokenStore for mcp-authkit — durable PATs, refresh tokens, and upstream-credential cache backed by node-postgres.",
+  "license": "MIT",
+  "author": "Om Morendha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omkmorendha/mcp-authkit.git",
+    "directory": "packages/store-postgres"
+  },
+  "homepage": "https://github.com/omkmorendha/mcp-authkit#readme",
+  "bugs": {
+    "url": "https://github.com/omkmorendha/mcp-authkit/issues"
+  },
+  "keywords": [
+    "mcp",
+    "oauth",
+    "authkit",
+    "token-store",
+    "postgres",
+    "pg",
+    "model-context-protocol"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.0"
+  }
+}
