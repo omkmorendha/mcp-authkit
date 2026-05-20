@@ -1,0 +1,26 @@
+{
+  "name": "mcp-authkit-example-postgres",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^5.0.0",
+    "mcp-authkit": "workspace:*",
+    "pg": "^8.13.0",
+    "pino": "^10.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^25.9.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.0"
+  }
+}

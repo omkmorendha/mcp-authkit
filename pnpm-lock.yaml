@@ -92,6 +92,40 @@ importers:
         specifier: ^4.19.0
         version: 4.22.3
 
+  examples/postgres:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      express:
+        specifier: ^5.0.0
+        version: 5.2.1
+      mcp-authkit:
+        specifier: workspace:*
+        version: link:../../packages/core
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/node':
+        specifier: ^25.9.0
+        version: 25.9.0
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.3
+
   examples/stdio:
     dependencies:
       '@modelcontextprotocol/sdk':
