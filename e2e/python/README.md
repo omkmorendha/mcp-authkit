@@ -1,17 +1,19 @@
 # Python E2E
 
 Exercises the full programmatic flow against a hello-world-shaped
-protected MCP server: mint a PAT via REST, call the `echo` tool, assert
-the response. Defined by spec
-[§18](../../docs/spec/v0.1.md#18-quality-bar-for-v01).
+protected MCP server: mint a PAT via the `mcp-authkit` CLI in a
+subprocess, call the `echo` tool with that PAT as a Bearer, assert
+the response. Defined by spec v0.2
+[§16](../../docs/spec/v0.2.md#16-quality-bar-for-v02).
 
 ## Layout
 
-| File         | Role                                                                              |
-| ------------ | --------------------------------------------------------------------------------- |
-| `server.ts`  | Node harness: in-process test Authorization Server + protected MCP server         |
-| `e2e.py`     | Python test, stdlib + `requests` only                                             |
-| `run.sh`     | Orchestrator: starts the harness, runs the script, tears down                     |
+| File                       | Role                                                                              |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `server.ts`                | Node harness: Hono-mounted MCP server with a SQLite-backed `TokenStore`           |
+| `mcp-authkit.config.ts`    | Config loaded by both the harness AND the CLI subprocess (shared SQLite db file)  |
+| `e2e.py`                   | Python test, stdlib + `requests` only; mints PAT via CLI subprocess               |
+| `run.sh`                   | Orchestrator: builds (if needed), starts the harness, runs the script, tears down |
 
 ## Prerequisites
 
@@ -53,17 +55,20 @@ and dumps the harness's stderr log for context.
 
 ## What it covers
 
-- **PAT mint** (`POST /pats`) authenticated by a real JWT from the
-  in-process test AS. Bypass mode is **off** in the harness, so the
-  token validation pipeline (spec §9) genuinely runs.
+- **Hono adapter** mounting `/mcp`, `/.well-known/oauth-protected-resource`,
+  and `/pats` routes (spec v0.2 §10).
+- **CLI `mint-pat`** in a subprocess, including JSON output parsing
+  (spec v0.2 §9.2).
+- **SQLite token store** as the cross-process shared state (spec v0.2 §6.4).
 - **MCP session handshake** (`initialize` + `notifications/initialized`)
   using the minted PAT as a Bearer token.
 - **Tool call** (`tools/call name=echo`) and response assertion.
 
-Anything else (OAuth browser flows, refresh rotation, scope wildcards,
-PAT-cannot-manage-PATs negative paths) is out of scope here and is
-covered by the unit and integration test suites in the `packages/`
-tree.
+Bypass mode is OFF in the harness, so the PAT bearer round-trips the
+real validation pipeline (spec v0.1 §9). Anything else (OAuth browser
+flows, refresh rotation, scope wildcards, PAT-cannot-manage-PATs
+negative paths) is out of scope here and covered by the unit and
+integration suites in the `packages/` tree.
 
 ## Customising
 

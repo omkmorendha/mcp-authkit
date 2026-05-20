@@ -1,0 +1,26 @@
+# Local-dev Postgres for the mcp-authkit Postgres example.
+#
+# Usage:
+#   docker compose -f examples/postgres/docker-compose.yml up -d
+#   DATABASE_URL=postgres://authkit@localhost:5432/authkit_test \
+#     pnpm --filter mcp-authkit-example-postgres dev
+#
+# The container binds to localhost and uses POSTGRES_HOST_AUTH_METHOD=trust
+# — there is no password to leak. This is a local-only dev convenience;
+# do NOT use this configuration in production.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: mcp-authkit-example-postgres
+    environment:
+      POSTGRES_USER: authkit
+      POSTGRES_DB: authkit_test
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authkit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
