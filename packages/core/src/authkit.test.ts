@@ -831,3 +831,42 @@ describe("audit hook rejection propagates from registerTool scope gate", () => {
     await expect(getToolHandler(mcp, "denied")?.({}, {})).rejects.toBe(boom)
   })
 })
+
+// ---------------------------------------------------------------------------
+// upstreamFor: function-form authorizationServer (#91)
+// ---------------------------------------------------------------------------
+
+describe("upstreamFor with function-form authorizationServer", () => {
+  it("constructs without reading .issuer off the resolver function", () => {
+    // Regression: pre-fix the wiring read `as.issuer` directly even when the
+    // AS was the function form, which type-failed at build time (spec v0.2
+    // §5.1 introduced the union).
+    const config = makeConfig({
+      auth: {
+        ...makeConfig().auth,
+        authorizationServer: async () => ({
+          issuer: ISSUER_PLACEHOLDER,
+          jwksUri: `${ISSUER_PLACEHOLDER}/.well-known/jwks.json`,
+        }),
+      },
+    })
+    expect(() => createAuthKit(config)).not.toThrow()
+  })
+
+  it("rejects upstreamFor calls at the call site when AS is the function form", () => {
+    // The function-form AS resolves per request, but upstreamFor (spec §5.6)
+    // wants a single static issuer at construction time. The helper refuses
+    // cleanly at call time so registerTool stays usable.
+    const config = makeConfig({
+      auth: {
+        ...makeConfig().auth,
+        authorizationServer: async () => ({
+          issuer: ISSUER_PLACEHOLDER,
+          jwksUri: `${ISSUER_PLACEHOLDER}/.well-known/jwks.json`,
+        }),
+      },
+    })
+    const kit = createAuthKit(config)
+    expect(() => kit.upstreamFor("https://upstream.example.test/")).toThrow(/function-form/)
+  })
+})
