@@ -11,9 +11,12 @@ few minutes. By the end you will:
 It assumes Node.js 20+ and a recent `pnpm` (or `npm`/`yarn` — examples use
 `pnpm`). No prior MCP experience required.
 
-> **Spec reference.** This guide implements the v0.1 happy path defined in
-> [`docs/spec/v0.1.md`](spec/v0.1.md). When something here is ambiguous, the
-> spec wins.
+> **Spec reference.** This guide implements the happy path defined in
+> [`docs/spec/v0.1.md`](spec/v0.1.md) (still authoritative for the core
+> single-tenant flow shown here). For Postgres, Hono, the CLI, and other
+> v0.2 additions see [`docs/production.md`](production.md) and
+> [`docs/spec/v0.2.md`](spec/v0.2.md). When something here is ambiguous,
+> the spec wins.
 
 ---
 

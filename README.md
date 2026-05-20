@@ -2,30 +2,26 @@
 
 [![CI](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml/badge.svg)](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml)
 
-> **Status: v0.2 in development.** The active spec is
+> **Status: v0.2.0 shipped (2026-05-20).** The active spec is
 > [`docs/spec/v0.2.md`](docs/spec/v0.2.md); the v0.1 baseline lives at
 > [`docs/spec/v0.1.md`](docs/spec/v0.1.md).
 
 mcp-authkit is a framework-agnostic auth toolkit for Model Context Protocol servers: it helps server authors validate spec-compliant OAuth 2.1 tokens, issue Personal Access Tokens for scripts and CI, and enforce per-tool authorization without wiring auth logic into every handler.
 
-## v0.1 scope
+## What's in v0.2
 
 - Core package with token validation, PATs, scope matching, framework-agnostic handlers, bypass mode, and audit callbacks.
-- In-process `memoryTokenStore` for tests and local development.
-- Express adapter as the first web framework integration.
-- `hello-world` example with a minimal protected HTTP server and PAT issuance.
-- Unit, integration, and security tests for the core package.
-- Quickstart documentation that gets a developer to a running protected server.
+- Token stores: in-process `memoryTokenStore`, durable Postgres and SQLite stores, optional Redis cache decorator.
+- Web framework adapters: Express and Hono.
+- OAuth consumer flows: Dynamic Client Registration (RFC 7591), JWT Bearer Assertion (RFC 7523), Client Credentials (RFC 6749 §4.4), Token Exchange (RFC 8693).
+- Multi-tenant `authorizationServer(req)` function form with per-issuer JWKS caching.
+- Upstream credential helper (`authkit.upstreamFor(audience)`) for on-behalf-of token minting.
+- Production stdio transport with signed handshake.
+- `mcp-authkit` CLI (`init`, `mint-pat`, `verify-config`, `jwks-fetch`, `gen-secret`) and `mcp-authkit.config.ts` loader.
+- Examples: `hello-world`, `postgres`, `filesystem` (SQLite), `stdio`.
+- Production deployment guide and per-store cookbook.
 
-## Deferred
-
-The full deferred list lives in [spec §0](docs/spec/v0.1.md#0-v01-scope). v0.1 will not include:
-
-- Postgres, SQLite, Redis, filesystem, or production stdio support.
-- Hono adapter or additional examples beyond `hello-world`.
-- CLI commands or `mcp-authkit.config.ts`.
-- Multi-tenant authorization server mode.
-- Dynamic Client Registration, JWT Bearer Assertion, Client Credentials, token exchange, or on-behalf-of helpers.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full release notes.
 
 ## Quickstart
 

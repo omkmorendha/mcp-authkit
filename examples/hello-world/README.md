@@ -1,8 +1,10 @@
 # hello-world
 
 A minimal protected MCP server built with `mcp-authkit`. Exercises the
-full v0.1 stack: token validation pipeline, PAT REST endpoints, scope
-gating, the Express adapter, and the in-memory token store.
+core single-tenant stack: token validation pipeline, PAT REST endpoints,
+scope gating, the Express adapter, and the in-memory token store. For
+Postgres, SQLite, Hono, or production stdio see the sibling examples
+and [`docs/cookbook/`](../../docs/cookbook/).
 
 The source (`src/index.ts`) fits in under 50 lines — see spec
 [§6.2](../../docs/spec/v0.1.md#62-usage-hello-world-target-under-50-lines).

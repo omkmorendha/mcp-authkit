@@ -5,15 +5,18 @@ should behave in this repository. `AGENTS.md` is a symlink to this file.
 
 ## 1. The Spec is Law
 
-The v0.1 specification lives at [`docs/spec/v0.1.md`](docs/spec/v0.1.md).
+The active specification is [`docs/spec/v0.2.md`](docs/spec/v0.2.md).
+The v0.1 baseline lives at [`docs/spec/v0.1.md`](docs/spec/v0.1.md) and
+remains authoritative for everything it covered.
 
-- **Do not implement anything outside v0.1 scope** (see §0).
-- **Do not stub deferred v0.2+ features.** No placeholder methods, no TODO
+- **Do not implement anything outside the active spec's scope** (see §0
+  of each spec).
+- **Do not stub deferred v0.3+ features.** No placeholder methods, no TODO
   comments referencing deferred work, no "future-proof" hooks. The reviewer
   blocks any such stub.
 - Spec changes require their own PR with rationale — do not edit the spec
   as part of an implementation PR.
-- Issues link to spec anchors (e.g. `docs/spec/v0.1.md#9-token-validation-pipeline`).
+- Issues link to spec anchors (e.g. `docs/spec/v0.2.md#7-pipeline-and-handler-flow`).
   If an issue's intent diverges from the spec, the spec wins; flag it.
 
 ## 2. Security Non-Negotiables (Spec §14)

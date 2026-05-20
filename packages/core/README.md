@@ -12,7 +12,7 @@ metadata, and enforces per-tool scopes before handlers run.
 pnpm add mcp-authkit @modelcontextprotocol/sdk pino zod
 ```
 
-For the v0.1 memory store and Express adapter:
+For the in-memory store and Express adapter:
 
 ```ts
 import { createAuthKit } from "mcp-authkit"
