@@ -38,9 +38,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     env:
       INTEGRATION_DATABASE_URL: postgres://authkit@localhost:5432/authkit_test
+      INTEGRATION_REDIS_URL: redis://127.0.0.1:6379
 
     steps:
       - name: Checkout

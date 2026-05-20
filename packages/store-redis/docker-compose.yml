@@ -1,0 +1,23 @@
+# Local-dev Redis for mcp-authkit-store-redis integration tests.
+#
+# Usage:
+#   docker compose -f packages/store-redis/docker-compose.yml up -d
+#   INTEGRATION_REDIS_URL=redis://127.0.0.1:6379 \
+#     pnpm --filter mcp-authkit-store-redis test
+#
+# CI does NOT use this file — it uses GitHub Actions `services:` (see
+# .github/workflows/ci.yml). This file exists only so contributors can
+# run the integration suite locally without rebuilding the image.
+
+services:
+  redis:
+    image: redis:7
+    container_name: mcp-authkit-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
