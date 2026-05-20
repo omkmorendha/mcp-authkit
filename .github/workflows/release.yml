@@ -1,0 +1,78 @@
+name: Release
+
+# Publishes every public workspace package to npmjs.org on tag push, using
+# npm Trusted Publishers (OIDC). No NPM_TOKEN secret is required — npm
+# verifies the publish came from this exact workflow on this exact repo via
+# a short-lived OIDC token minted by GitHub.
+#
+# Provenance attestations are emitted by `npm publish --provenance`, which
+# puts a "Provenance" badge on each package's npmjs.com page tying the
+# tarball to this workflow run and commit SHA.
+#
+# Prerequisites on npmjs.com (one-time, per package):
+#   Settings → Trusted Publishers → "Add Trusted Publisher"
+#     Publisher:         GitHub Actions
+#     Organization/user: omkmorendha
+#     Repository:        mcp-authkit
+#     Workflow filename: release.yml
+#     Environment:       (leave blank)
+#
+# After all 9 packages have the Trusted Publisher configured, recommend
+# also enabling "Require two-factor authentication and disallow tokens" on
+# each package — that makes OIDC the *only* path to publish, removing the
+# manual-publish escape hatch.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write   # Required: lets the runner mint the OIDC token npm verifies.
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10.30.0"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Trusted Publishers needs Node >= 22.14 and npm >= 11.5.1.
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+
+      - name: Verify npm version supports Trusted Publishers
+        run: |
+          npm --version
+          node -e "const [maj,min,patch] = process.versions.node.split('.').map(Number); if (maj < 22 || (maj === 22 && min < 14)) { console.error('Node >= 22.14 required for Trusted Publishers'); process.exit(1); }"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # `pnpm -r publish` walks every workspace package and publishes the
+      # non-private ones. `--access public` is required for unscoped names.
+      # `--provenance` emits the OIDC-signed attestation. `--no-git-checks`
+      # because pnpm's "dirty tree" check trips on lockfile timestamps in CI.
+      - name: Publish
+        run: pnpm -r publish --access public --provenance --no-git-checks
