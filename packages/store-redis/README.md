@@ -28,4 +28,9 @@ key. A wrong tag is treated as a miss and logs at `warn`.
 Negative caching is OFF by default. Opt in via `negativeCacheTtlSeconds`
 (capped at 5 s).
 
-See [`docs/spec/v0.2.md#65-redis-cache-decorator`](../../docs/spec/v0.2.md#65-redis-cache-decorator).
+See [`docs/spec/v0.2.md#65-redis-cache-decorator`](../../docs/spec/v0.2.md#65-redis-cache-decorator)
+for the contract and
+[`docs/cookbook/redis-cache.md`](../../docs/cookbook/redis-cache.md)
+for the operator-facing recipe (HMAC keying, invalidation, what to
+test). The end-to-end deployment walkthrough is
+[`docs/production.md`](../../docs/production.md).

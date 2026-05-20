@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml/badge.svg)](https://github.com/omkmorendha/mcp-authkit/actions/workflows/ci.yml)
 
-> **Status: v0.1 in development.** The v0.1 spec is the source of truth:
+> **Status: v0.2 in development.** The active spec is
+> [`docs/spec/v0.2.md`](docs/spec/v0.2.md); the v0.1 baseline lives at
 > [`docs/spec/v0.1.md`](docs/spec/v0.1.md).
 
 mcp-authkit is a framework-agnostic auth toolkit for Model Context Protocol servers: it helps server authors validate spec-compliant OAuth 2.1 tokens, issue Personal Access Tokens for scripts and CI, and enforce per-tool authorization without wiring auth logic into every handler.
@@ -35,6 +36,13 @@ with no prior MCP experience required.
 
 ## Docs
 
-- Quickstart: [`docs/quickstart.md`](docs/quickstart.md)
-- Source of truth: [`docs/spec/v0.1.md`](docs/spec/v0.1.md)
+- Quickstart: [`docs/quickstart.md`](docs/quickstart.md) — local dev to a
+  running protected server.
+- Production guide: [`docs/production.md`](docs/production.md) — operator
+  walkthrough from a Postgres URL to a running server.
+- Cookbook: [`docs/cookbook/`](docs/cookbook/) — per-store, per-adapter,
+  per-flow recipes (Postgres, SQLite, Redis, Hono, multi-tenant,
+  upstream credentials, production stdio).
+- Spec: [`docs/spec/v0.2.md`](docs/spec/v0.2.md) (active),
+  [`docs/spec/v0.1.md`](docs/spec/v0.1.md) (baseline).
 - Release notes: [`CHANGELOG.md`](CHANGELOG.md)

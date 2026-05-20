@@ -105,6 +105,10 @@ that is the whole point of choosing the Postgres store over
 
 ## Production notes
 
+For an end-to-end walkthrough see
+[`docs/production.md`](../../docs/production.md) and the
+[`postgres-store`](../../docs/cookbook/postgres-store.md) cookbook entry.
+
 This example is tuned for local development. For real deployments:
 
 - Set `MCP_AUTHKIT_BYPASS=0` and configure `authorizationServer` against
