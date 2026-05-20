@@ -345,6 +345,23 @@ describe("createAuthKit", () => {
       ),
     ).not.toThrow()
   })
+
+  it("upstreamFor refuses with a clear error when authorizationServer is in function form", () => {
+    const authkit = createAuthKit(
+      makeConfig({
+        auth: {
+          ...makeConfig().auth,
+          authorizationServer: async () => ({
+            issuer: ISSUER_PLACEHOLDER,
+            jwksUri: `${ISSUER_PLACEHOLDER}/.well-known/jwks.json`,
+          }),
+        },
+      }),
+    )
+    expect(() => authkit.upstreamFor("https://upstream.example.test/")).toThrow(
+      /function-form authorizationServer is not yet supported/,
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------
