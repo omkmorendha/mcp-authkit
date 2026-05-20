@@ -48,23 +48,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          # Trusted Publishers needs Node >= 22.14 and npm >= 11.5.1.
-          node-version: "22"
+          # Trusted Publishers / OIDC requires npm >= 11.5.1. Node 22 LTS
+          # ships npm 10.x; Node 24+ ships npm 11.x. We tried upgrading
+          # in-place with `npm install -g --force npm@11` but it crashed
+          # with MODULE_NOT_FOUND (npm cannot reliably replace its own
+          # running install). Using a Node line that already includes
+          # npm 11 sidesteps the bug entirely.
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
           cache: "pnpm"
 
-      # Node 22 LTS ships with npm 10. Trusted Publishers / OIDC requires
-      # npm >= 11.5.1, and pnpm's OIDC path shells out to npm for the token
-      # exchange (pnpm/pnpm#8091). `--force` avoids the MODULE_NOT_FOUND
-      # crash from npm half-replacing its own running install mid-upgrade.
-      - name: Upgrade npm to a Trusted-Publishers-capable version
+      - name: Verify versions
         run: |
-          npm install -g --force npm@11
           echo "node: $(node --version)"
           echo "npm:  $(npm --version)"
           echo "pnpm: $(pnpm --version)"
           test "$(printf '%s\n11.5.1\n' "$(npm --version)" | sort -V | head -1)" = "11.5.1" \
-            || { echo "::error::npm is older than 11.5.1; Trusted Publishers will fail"; exit 1; }
+            || { echo "::error::npm < 11.5.1 — Trusted Publishers will fail"; exit 1; }
 
       - name: Install
         run: pnpm install --frozen-lockfile
