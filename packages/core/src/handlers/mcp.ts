@@ -28,7 +28,12 @@ export interface McpHandlerDeps {
   readonly mcp: McpServer
   readonly resourceIndicator: string
   readonly host: HostValidationOptions
-  readonly runPipeline: (bearer: string | null) => Promise<PipelineResult>
+  /**
+   * Pipeline bound to the current request. The `req` argument lets the
+   * pipeline run multi-tenant resolution (spec v0.2 §7) before any other
+   * step; for single-tenant deployments it is unused.
+   */
+  readonly runPipeline: (req: IncomingMessage, bearer: string | null) => Promise<PipelineResult>
   readonly authContextStorage: AsyncLocalStorage<AuthContext>
 }
 
@@ -93,8 +98,24 @@ export function createMcpHandler(
       }
 
       const bearer = extractBearer(req.headers.authorization)
-      const result = await deps.runPipeline(bearer)
+      const result = await deps.runPipeline(req, bearer)
       if (!result.ok) {
+        if (result.kind === "server-error") {
+          // Spec v0.2 §7: authorization-server resolution failure is a 503,
+          // not a 401 — the token is not the problem, the AS lookup is.
+          if (!res.headersSent) {
+            res.setHeader("WWW-Authenticate", 'Bearer error="server_error"')
+            res.setHeader("Cache-Control", "no-store")
+            res.writeHead(503, { "Content-Type": "application/json" })
+            res.end(
+              JSON.stringify({
+                error: "server_error",
+                error_description: "Authorization server resolution failed",
+              }),
+            )
+          }
+          return
+        }
         writeChallenge(res, {
           resourceMetadataUrl: metadataUrlFor(deps.resourceIndicator),
           ...(bearer === null

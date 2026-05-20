@@ -9,13 +9,15 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks"
 import { createHash, timingSafeEqual } from "node:crypto"
+import type { IncomingMessage } from "node:http"
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import pino from "pino"
 import { z } from "zod"
 import { type AuditSink, dispatchAudit } from "./audit/index.js"
 import { createIntrospectionValidator } from "./auth/introspection.js"
-import { createJwtValidator } from "./auth/jwt.js"
+import { createJwksRegistry, type JwksRegistry } from "./auth/jwt.js"
+import { resolveAuthorizationServer } from "./auth/tenant.js"
 import {
   checkBypassConfig,
   synthesizeBypassContext,
@@ -29,14 +31,30 @@ import { createPatsHandler } from "./handlers/pats.js"
 import { findPatByHash, type PatLifecycleConfig, updatePatLastUsed } from "./pats/lifecycle.js"
 import { satisfies } from "./scopes/satisfies.js"
 import { checkSignedStdioConfig } from "./stdio/index.js"
-import type { AuthContext, AuthKit, AuthKitConfig, Handlers, RegisterToolOptions } from "./types.js"
+import type {
+  AuthContext,
+  AuthKit,
+  AuthKitConfig,
+  AuthorizationServerConfig,
+  Handlers,
+  RegisterToolOptions,
+} from "./types.js"
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Internal pipeline result — not part of the public API. */
-export type PipelineResult = { ok: true; auth: AuthContext } | { ok: false; reason: string }
+/**
+ * Internal pipeline result — not part of the public API.
+ *
+ * `kind` on the failure branch lets HTTP handlers distinguish a token-level
+ * 401 (`kind: "unauthorized"`, the default) from a server-side failure to
+ * resolve the authorization server (`kind: "server-error"`) which spec v0.2
+ * §7 requires to surface as HTTP 503, not 401.
+ */
+export type PipelineResult =
+  | { ok: true; auth: AuthContext }
+  | { ok: false; reason: string; kind?: "unauthorized" | "server-error" }
 
 /**
  * Extract the Bearer token from an Authorization header value.
@@ -76,9 +94,56 @@ export function timingSafeStringEqual(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf)
 }
 
+/**
+ * Select the authorization server config visible to {@link runPipeline}.
+ *
+ * - Static-object form: returned as-is.
+ * - Function form: requires the caller (typically an HTTP handler) to have
+ *   pre-resolved the AS and passed it in `extras.resolvedAuthorizationServer`.
+ *   Spec v0.2 §7 puts tenant resolution BEFORE token parsing, so this
+ *   function never invokes the consumer's resolver itself.
+ *
+ * Returns `null` when no AS is available — either because the config has
+ * none (bypass-only deployments) or because the caller forgot to pre-resolve
+ * a function-form config (a programmer error; pipeline degrades to 401).
+ */
+function resolveAsForPipeline(
+  config: AuthKitConfig,
+  extras: RunPipelineExtras | undefined,
+): AuthorizationServerConfig | null {
+  if (extras?.resolvedAuthorizationServer !== undefined) {
+    return extras.resolvedAuthorizationServer
+  }
+  const spec = config.auth.authorizationServer
+  if (spec === undefined) return null
+  if (typeof spec === "function") return null
+  return spec
+}
+
 // ---------------------------------------------------------------------------
 // Six-step validation pipeline (spec §9)
 // ---------------------------------------------------------------------------
+
+/**
+ * Optional inputs to {@link runPipeline}. For multi-tenant deployments
+ * (spec v0.2 §5.1, §7) handlers pre-resolve the AS and pass it here so the
+ * pipeline can run without re-invoking the consumer's resolver mid-pipeline.
+ */
+export interface RunPipelineExtras {
+  /**
+   * Already-resolved authorization server. Required when
+   * `config.auth.authorizationServer` is a function and the bearer token
+   * needs JWT / introspection validation.
+   */
+  resolvedAuthorizationServer?: AuthorizationServerConfig
+  /**
+   * Issuer-keyed JWKS cache. Multi-tenant deployments share one registry
+   * across requests so two tenants do not collide (spec v0.2 §7). If
+   * omitted, a fresh registry is created — fine for direct unit-test use
+   * but wasteful in production paths.
+   */
+  jwksRegistry?: JwksRegistry
+}
 
 /**
  * Run the six-step token validation pipeline for a single request.
@@ -95,6 +160,7 @@ export async function runPipeline(
   config: AuthKitConfig,
   bearerToken: string | null,
   onEvent?: AuditSink,
+  extras?: RunPipelineExtras,
 ): Promise<PipelineResult> {
   const now = new Date()
 
@@ -161,15 +227,19 @@ export async function runPipeline(
     return { ok: false, reason: "pat-not-found-or-invalid" }
   }
 
-  const as = config.auth.authorizationServer
+  const as = resolveAsForPipeline(config, extras)
   if (!as) {
     // No AS configured — cannot validate JWT or introspect.
     return { ok: false, reason: "no authorization server configured" }
   }
 
+  // Per-issuer JWKS cache (spec v0.2 §7). Fresh per call only when the caller
+  // didn't share one — handlers do, direct unit tests typically don't.
+  const jwksRegistry = extras?.jwksRegistry ?? createJwksRegistry()
+
   // Step 4: Bearer token looks like JWT (3-dot structure)?
   if (looksLikeJwt(bearerToken)) {
-    const validator = createJwtValidator({
+    const validator = jwksRegistry.validator({
       issuer: as.issuer,
       audience: config.resourceIndicator,
       jwksUri: as.jwksUri,
@@ -297,6 +367,11 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   // DNS-rebinding protection.
   const host = resolveHostOptions(config)
 
+  // Process-wide JWKS cache keyed by resolved issuer (spec v0.2 §7). Shared
+  // across requests so multi-tenant deployments don't re-fetch JWKS on every
+  // call; isolated by issuer so two tenants don't collide.
+  const jwksRegistry = createJwksRegistry()
+
   // AsyncLocalStorage allows the HTTP mcp handler (issue #36) to inject an
   // AuthContext into the async context so registerTool handlers can read it
   // without threading it through the MCP SDK call stack.
@@ -376,19 +451,46 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   }
 
   function handlers(mcp: McpServer): Handlers {
-    const runPipelineBound = (bearer: string | null) => runPipeline(config, bearer, onEvent)
+    const runPipelineForRequest = async (
+      req: IncomingMessage,
+      bearer: string | null,
+    ): Promise<PipelineResult> => {
+      const spec = config.auth.authorizationServer
+      // No AS configured (e.g. bypass-only or stdio auto-enable). Skip the
+      // resolver step entirely; the pipeline will short-circuit at step 4
+      // if a JWT-shaped token arrives.
+      if (spec === undefined) {
+        return runPipeline(config, bearer, onEvent, { jwksRegistry })
+      }
+      const resolved = await resolveAuthorizationServer({
+        incoming: req,
+        resolverSpec: spec,
+        logger,
+      })
+      if (!resolved.ok) {
+        return {
+          ok: false,
+          reason: `authorization-server-resolution-failed: ${resolved.error.message}`,
+          kind: "server-error",
+        }
+      }
+      return runPipeline(config, bearer, onEvent, {
+        resolvedAuthorizationServer: resolved.as,
+        jwksRegistry,
+      })
+    }
 
     const mcpHandler = createMcpHandler({
       mcp,
       resourceIndicator: config.resourceIndicator,
       host,
-      runPipeline: runPipelineBound,
+      runPipeline: runPipelineForRequest,
       authContextStorage,
     })
 
     const metadataHandler = createMetadataHandler({
       resourceIndicator: config.resourceIndicator,
-      ...(config.auth.authorizationServer
+      ...(typeof config.auth.authorizationServer === "object"
         ? { authorizationServerIssuer: config.auth.authorizationServer.issuer }
         : {}),
       vocabulary: config.scopes.vocabulary,
@@ -400,7 +502,7 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
       lifecycleConfig: resolvePatLifecycleConfig(config),
       resourceIndicator: config.resourceIndicator,
       host,
-      runPipeline: runPipelineBound,
+      runPipeline: runPipelineForRequest,
       ...(onEvent ? { audit: onEvent } : {}),
     })
 
@@ -420,11 +522,13 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   // The _authContextStorage and _runPipeline fields are used by the HTTP
   // handler (issue #36) to inject auth context and reuse the bound pipeline.
   // Not part of the public AuthKit interface; _ prefix signals internal use.
+  // For function-form authorizationServer the bearer-only signature cannot
+  // resolve a tenant; callers in that mode go through `handlers()` instead.
   return {
     registerTool,
     handlers,
     _authContextStorage: authContextStorage,
-    _runPipeline: (bearer: string | null) => runPipeline(config, bearer, onEvent),
+    _runPipeline: (bearer: string | null) => runPipeline(config, bearer, onEvent, { jwksRegistry }),
   } as AuthKit & {
     _authContextStorage: AsyncLocalStorage<AuthContext>
     _runPipeline: (bearer: string | null) => Promise<PipelineResult>
