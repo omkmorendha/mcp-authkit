@@ -17,6 +17,10 @@ export default defineConfig({
         "./packages/store-postgres/src/index.ts",
         import.meta.url,
       ).pathname,
+      "mcp-authkit-store-sqlite": new URL("./packages/store-sqlite/src/index.ts", import.meta.url)
+        .pathname,
+      "mcp-authkit-store-redis": new URL("./packages/store-redis/src/index.ts", import.meta.url)
+        .pathname,
     },
   },
   test: {

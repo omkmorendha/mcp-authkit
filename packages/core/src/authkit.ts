@@ -526,11 +526,10 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   // authorization server is configured (the helper requires RFC 8693 support,
   // which implies an AS). Construction itself is cheap and is performed up
   // front so the LRU-fallback startup warning fires when the AS is present
-  // but the store omits the optional cache methods.
+  // but the store omits the optional cache methods. The function-form
+  // (multi-tenant) authorizationServer is not yet supported by upstreamFor —
+  // it requires a per-request resolver, tracked separately.
   const as = config.auth.authorizationServer
-  // Multi-tenant resolver form (function) can't be reduced to a single issuer
-  // at construction; upstreamFor is unavailable for those deployments until
-  // we have a per-tenant variant. Static-object form keeps the v0.1 path.
   const upstreamForImpl =
     as && typeof as !== "function"
       ? createUpstreamFor({
@@ -544,7 +543,9 @@ export function createAuthKit(config: AuthKitConfig): AuthKit {
   const upstreamFor = (audience: string) => {
     if (upstreamForImpl === null) {
       throw new Error(
-        "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
+        as && typeof as === "function"
+          ? "upstreamFor: function-form authorizationServer is not yet supported by upstreamFor"
+          : "upstreamFor: an authorizationServer must be configured to mint upstream credentials",
       )
     }
     return (args: UpstreamForArgs): Promise<UpstreamCredential> => upstreamForImpl(audience)(args)

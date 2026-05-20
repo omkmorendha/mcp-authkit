@@ -46,6 +46,14 @@
       "types": "./dist/stores/postgres.d.ts",
       "import": "./dist/stores/postgres.js"
     },
+    "./stores/sqlite": {
+      "types": "./dist/stores/sqlite.d.ts",
+      "import": "./dist/stores/sqlite.js"
+    },
+    "./stores/redis": {
+      "types": "./dist/stores/redis.d.ts",
+      "import": "./dist/stores/redis.js"
+    },
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
@@ -66,9 +74,17 @@
       "types": "./dist/oauth/client-credentials.d.ts",
       "import": "./dist/oauth/client-credentials.js"
     },
+    "./oauth/dcr": {
+      "types": "./dist/oauth/dcr.d.ts",
+      "import": "./dist/oauth/dcr.js"
+    },
     "./upstream": {
       "types": "./dist/upstream/index.d.ts",
       "import": "./dist/upstream/index.js"
+    },
+    "./oauth/jwt-bearer": {
+      "types": "./dist/oauth/jwt-bearer.d.ts",
+      "import": "./dist/oauth/jwt-bearer.js"
     }
   },
   "files": [
@@ -89,6 +105,8 @@
     "mcp-authkit-config": "workspace:*",
     "mcp-authkit-store-memory": "workspace:*",
     "mcp-authkit-store-postgres": "workspace:*",
+    "mcp-authkit-store-sqlite": "workspace:*",
+    "mcp-authkit-store-redis": "workspace:*",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },
