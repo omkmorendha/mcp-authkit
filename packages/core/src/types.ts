@@ -157,6 +157,16 @@ export interface AuthKitConfig {
       user: string
       scopes: readonly string[]
     }
+    /**
+     * Production stdio transport (spec v0.2 §11). Opt-in; when present,
+     * the framework HMAC-signs every response and verifies every inbound
+     * frame. Bypass mode is REFUSED when this is set. Only the static
+     * token or PATs authenticate inside signed stdio.
+     */
+    stdio?: {
+      mode: "signed"
+      hmacKey: Buffer | string
+    }
   }
 
   scopes: {

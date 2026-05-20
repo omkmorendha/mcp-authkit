@@ -45,6 +45,10 @@
     "./oauth/token-exchange": {
       "types": "./dist/oauth/token-exchange.d.ts",
       "import": "./dist/oauth/token-exchange.js"
+    },
+    "./stdio": {
+      "types": "./dist/stdio/index.d.ts",
+      "import": "./dist/stdio/index.js"
     }
   },
   "files": [
