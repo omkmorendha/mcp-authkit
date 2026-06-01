@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "mcp-authkit-store-memory": "workspace:*",
-    "tsx": "^4.22.3",
+    "tsx": "^4.22.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
